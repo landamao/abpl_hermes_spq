@@ -1,4 +1,4 @@
-# Hermes Agent 适配器插件 (WebSocket 版)
+# Hermes Agent 适配器插件
 
 实现 AstrBot 与 [Hermes Agent](https://github.com/your-hermes-repo) 的双向通信，让 Hermes 能够接收 QQ 群消息、执行 AstrBot 的所有插件指令。
 
