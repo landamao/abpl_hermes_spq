@@ -22,6 +22,6 @@ help: |
   POST /api/send - 发送消息
 version: v2.0
 author: 懒大猫
-repo:
+repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
   - aiocqhttp
