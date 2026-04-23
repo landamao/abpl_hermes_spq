@@ -1,0 +1,27 @@
+name: Hermes适配器
+desc: Hermes Agent 适配器 (WebSocket 版本) - 实现 AstrBot 与 Hermes 的双向通信
+help: |
+  Hermes 适配器插件 - WebSocket 版本
+  
+  功能：
+  - 通过 WebSocket 连接到 Hermes Agent
+  - 监听群消息，过滤后转发给 Hermes
+  - 接收 Hermes 的指令执行请求
+  - 通过 HTTP API 执行 AstrBot 指令
+  
+  指令：
+  /hermes status - 查看适配器状态
+  /hermes test - 测试与 Hermes 的连接
+
+  API 端点：
+  GET /api/health - 健康检查
+  GET /api/commands - 列出所有指令
+  GET /api/commands/for_hermes - 为 Hermes 优化的指令列表
+  GET /api/command/<name> - 获取指令详情
+  POST /api/execute - 执行指令
+  POST /api/send - 发送消息
+version: v2.0
+author: 懒大猫
+repo:
+support_platforms:
+  - aiocqhttp

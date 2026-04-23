@@ -1,0 +1,98 @@
+{
+  "onebot_api_url": {
+    "description": "OneBot HTTP API 地址",
+    "type": "string",
+    "hint": "NapCat 的 HTTP API 地址，用于转发消息",
+    "default": "http://127.0.0.1:5700"
+  },
+  "hermes_ws_url": {
+    "description": "Hermes WebSocket 地址",
+    "type": "string",
+    "hint": "连接到 Hermes 的 WebSocket 地址",
+    "default": "ws://127.0.0.1:6701"
+  },
+  "hermes_access_token": {
+    "description": "Hermes 访问令牌",
+    "type": "string",
+    "hint": "连接到 Hermes 的访问令牌，为空表示不需要认证",
+    "default": ""
+  },
+  "enable_http_server": {
+    "description": "启用 HTTP 服务器",
+    "type": "bool",
+    "hint": "是否启动 HTTP 服务器接收 Hermes 的指令请求",
+    "default": true
+  },
+  "http_server_port": {
+    "description": "HTTP 服务器端口",
+    "type": "int",
+    "hint": "接收 Hermes 指令请求的端口",
+    "default": 8567
+  },
+  "http_server_token": {
+    "description": "HTTP 服务器认证 Token",
+    "type": "string",
+    "hint": "验证 Hermes 请求的 Token，为空表示不验证",
+    "default": ""
+  },
+  "trigger_keywords": {
+    "description": "触发转发的关键词",
+    "type": "list",
+    "hint": "消息中包含这些关键词时转发给 Hermes",
+    "default": ["纳西妲", "hermes", "Hermes"]
+  },
+  "trigger_at_bot": {
+    "description": "@机器人时触发",
+    "type": "bool",
+    "hint": "当消息 @机器人 时是否转发给 Hermes",
+    "default": true
+  },
+  "allowed_groups": {
+    "description": "允许的群白名单",
+    "type": "list",
+    "hint": "只转发这些群的消息，为空表示所有群",
+    "default": []
+  },
+  "allowed_users": {
+    "description": "允许的用户白名单",
+    "type": "list",
+    "hint": "只转发这些用户的消息，为空表示所有用户",
+    "default": []
+  },
+  "forward_all_messages": {
+    "description": "转发所有消息",
+    "type": "bool",
+    "hint": "是否转发所有消息（慎用，会消耗大量 token）",
+    "default": false
+  },
+  "command_whitelist": {
+    "description": "指令白名单",
+    "type": "list",
+    "hint": "允许 Hermes 执行的指令，为空表示所有指令",
+    "default": []
+  },
+  "command_blacklist": {
+    "description": "指令黑名单",
+    "type": "list",
+    "hint": "禁止 Hermes 执行的指令",
+    "default": ["重启", "关机", "更新"]
+  },
+  "max_message_length": {
+    "description": "最大消息长度",
+    "type": "int",
+    "hint": "超过此长度的消息将被截断",
+    "default": 2000
+  },
+  "approve_deny_enabled": {
+    "description": "启用 /approve 和 /deny",
+    "type": "bool",
+    "hint": "是否启用 /approve 和 /deny 这两个 Hermes 特殊指令",
+    "default": true
+  },
+  "approve_deny_users": {
+    "description": "/approve /deny 允许的用户",
+    "type": "list",
+    "hint": "允许使用 /approve 和 /deny 的用户 QQ 号",
+    "default": []
+  }
+}
