@@ -12,7 +12,7 @@ from astrbot.api.event import filter
 from astrbot.api.all import (
     Star, Context, AstrBotConfig, logger,
     Plain, Image, At, Json,
-    AstrBotMessage, MessageMember, MessageType, AstrMessageEvent
+    AstrBotMessage, MessageMember, MessageType, MessageChain
 )
 
 from astrbot.core.star.filter.command import CommandFilter
@@ -85,11 +85,12 @@ class Hermes适配器(Star):
             'ws_reconnects': 0,
             'start_time': time.time()
         }
-
+        self.已转发键 = "[HermesAdapter] 已转发"
         logger.info("[HermesAdapter] 插件已加载 (WebSocket 版本)")
         logger.info(f"[HermesAdapter]   - Hermes WebSocket: {self.hermes_ws_链接}")
         logger.info(f"[HermesAdapter]   - HTTP 服务器: {'启用' if self.启用_http_服务器 else '禁用'} (端口: {self.http_服务器_端口})")
         logger.info(f"[HermesAdapter]   - 触发关键词: {self.触发关键词}")
+        logger.info( "[HermesAdapter]   - 最后修改：4-23_16:44")
 
     def _构建处理器缓存(self):
         """构建指令处理器缓存"""
@@ -912,9 +913,79 @@ class Hermes适配器(Star):
         if not 应转发:
             return
 
+        onebot事件体 = self.构造请求体(event, 消息内容, 群号, 用户id, 用户名)
+        logger.debug(f"转发的消息体：{onebot事件体}")
+
+        await self._ws_发送数据(await onebot事件体)
+        event.set_extra(self.已转发键, True)
+        self.统计数据['messages_forwarded'] += 1
+        logger.info(f"[HermesAdapter] 已转发[{用户名}] 的消息到 Hermes：{消息内容[:50]}")
+
+    async def 构造请求体(self, event: AiocqhttpMessageEvent, 消息内容: str, 群号: str, 用户id: str, 用户名: str) -> dict:
+        """
+        构造 OneBot v11 格式的群消息事件体。
+
+        将接收到的 Aiocqhttp 消息事件转换为符合 OneBot v11 标准的事件字典，
+        用于后续消息处理或转发。内部会处理消息 ID 的重复问题、消息长度截断，
+        并提取原始消息链以构建完整的事件结构。
+
+        Args:
+            event: Aiocqhttp 消息事件对象，包含原始消息数据和扩展信息。
+            消息内容: 待构造的消息文本内容（可能被截断）。
+            群号: 群号的字符串表示，将被转换为整数放入 `group_id` 字段。
+            用户id: 发送者用户 ID 的字符串表示，将被转换为整数放入 `user_id` 及 `sender.user_id`。
+            用户名: 发送者昵称，同时用于 `sender.nickname` 和 `sender.card`。
+
+        Returns:
+            符合 OneBot v11 规范的群消息事件字典，结构如下：
+            {
+                "time": int,           # 当前时间戳
+                "self_id": "astrbot",  # 固定为 "astrbot"
+                "post_type": "message",
+                "message_type": "group",
+                "sub_type": "normal",
+                "message_id": int,     # 原始或随机生成的消息 ID
+                "group_id": int,
+                "user_id": int,
+                "message": list,       # 经 `_parse_onebot_json` 转换后的消息链
+                "raw_message": str,    # 原始消息文本
+                "font": 0,
+                "sender": {
+                    "user_id": int,
+                    "nickname": str,
+                    "card": str
+                }
+            }
+
+        Notes:
+            - 如果事件扩展信息中标记了“已转发”（通过 `self.已转发键` 判断），
+              会使用随机 ID（基于时间戳）以避免重复；否则尝试从 `event.message_obj.message_id` 获取原始 ID。
+            - 当获取原始 ID 失败时，同样生成随机 ID，并记录错误日志。
+            - 若 `消息内容` 长度超过 `self.最大消息长度`，则截断并添加 `...[已截断]` 后缀。
+            - 函数内部会调用 `event._parse_onebot_json` 将消息链转换为 OneBot 格式。
+        """
+        # ... 函数实现 ...
+        if event.get_extra(self.已转发键, False):
+            消息id = int(time.time() * 1000) % 2147483647
+            # 不能重复使用相同id，否则会被忽略， 但是消息id有用途，所有保留使用原始id
+            logger.warning(f"消息已转发过，将使用随机id：{消息内容[:50]}")
+        else:
+            try:
+                消息id = int(event.message_obj.message_id)
+            except Exception as e:
+                消息id = int(time.time() * 1000) % 2147483647
+                logger.error(f"获取消息id失败：{e}")
+
         if len(消息内容) > self.最大消息长度:
             消息内容 = 消息内容[:self.最大消息长度] + '...[已截断]'
 
+        原始消息链 = event.get_messages()  # 假设返回的是 List[MessageSegment]
+
+        # 删除所有 Plain 类型的元素，保留其他类型
+        新消息链 = [seg for seg in 原始消息链 if not isinstance(seg, Plain)]
+
+        # 追加新的 Plain 内容
+        新消息链.append(Plain(text=消息内容))
         # 构建 OneBot v11 格式的事件消息
         onebot事件体 = {
             "time": int(time.time()),
@@ -922,28 +993,20 @@ class Hermes适配器(Star):
             "post_type": "message",
             "message_type": "group",
             "sub_type": "normal",
-            "message_id": event.message_obj.message_id,
-            "group_id": int(群号) if 群号 else 0,
-            "user_id": int(用户id) if 用户id else 0,
-            "message": [
-                {
-                    "type": "text",
-                    "data": {"text": 消息内容}
-                }
-            ],
-            "raw_message": 消息内容,
+            "message_id": 消息id,
+            "group_id": int(群号),
+            "user_id": int(用户id),
+            "message": await event._parse_onebot_json(MessageChain(chain=新消息链)),
+            "raw_message": event.message_obj.raw_message,
             "font": 0,
             "sender": {
-                "user_id": int(用户id) if 用户id else 0,
+                "user_id": int(用户id),
                 "nickname": 用户名,
                 "card": 用户名
             }
         }
-        logger.debug(f"转发的消息体：{onebot事件体}")
 
-        await self._ws_发送数据(onebot事件体)
-        self.统计数据['messages_forwarded'] += 1
-        logger.info(f"[HermesAdapter] 已转发[{用户名}] 的消息到 Hermes：{消息内容[:50]}")
+        return onebot事件体
 
     def _检查approve_deny授权(self, 用户id: str) -> bool:
         """检查用户是否有 /approve 或 /deny 的权限"""
@@ -952,49 +1015,63 @@ class Hermes适配器(Star):
                 return True
         return False
 
-    def _是否应转发(self, 消息内容: str, 群号: str, 用户id: str, event: AstrMessageEvent) -> tuple[bool, str]:
+    def _是否应转发(self, 消息内容: str, 群号: str, 用户id: str, event: AiocqhttpMessageEvent) -> tuple[bool, str]:
         """判断是否需要转发给 Hermes"""
+        # 1. 转发所有消息
         if self.转发所有消息:
+            logger.debug(f"[HermesAdapter] 转发消息（原因：转发所有消息），内容：{消息内容[:30]}...")
             return True, 消息内容
 
+        # 2. 群组白名单过滤
         if self.允许的群组 and 群号 not in self.允许的群组:
+            logger.debug(f"[HermesAdapter] 忽略消息（原因：群号 {群号} 不在允许的群组列表中）")
             return False, 消息内容
 
+        # 3. 用户白名单过滤
         if self.允许的用户 and 用户id not in self.允许的用户:
+            logger.debug(f"[HermesAdapter] 忽略消息（原因：用户 {用户id} 不在允许的用户列表中）")
             return False, 消息内容
+
         名字 = self.触发关键词[0] if self.触发关键词 else ""
 
-        # 处理 /approve 和 /deny 命令（AstrBot 会去掉 "/" 前缀）
+        # 4. /approve 和 /deny 命令处理
         if self.approve_deny_启用 and 消息内容.startswith(("approve", "deny")):
+            # 检查是否为原始 "/" 命令（因 AstrBot 会去掉前缀）
             if next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith("/"):
-                # 授权检查
                 if not self._检查approve_deny授权(用户id):
                     logger.info(f"[HermesAdapter] /approve 或 /deny 被拒绝: 用户 {用户id} 无权限")
                     return False, 消息内容
+                logger.debug(f"[HermesAdapter] 转发消息（原因：approve/deny 授权命令），用户：{用户id}")
                 return True, f"/{消息内容}\n{名字}"
 
+        # 5. @ 机器人触发
         if self.触发艾特机器人:
             消息列表 = event.get_messages()
             for 单条消息 in 消息列表:
                 if isinstance(单条消息, At):
                     机器人id = event.get_self_id()
                     if str(单条消息.qq) == str(机器人id):
-                        return True, 名字 +"，"+ 消息内容
+                        logger.debug(f"[HermesAdapter] 转发消息（原因：@ 机器人触发），内容：{消息内容[:30]}...")
+                        return True, 名字 + "，" + 消息内容
 
+        # 6. 关键词触发
         for 关键词 in self.触发关键词:
             if 关键词.lower() in 消息内容.lower():
+                logger.debug(f"[HermesAdapter] 转发消息（原因：命中关键词 '{关键词}'），内容：{消息内容[:30]}...")
                 return True, 消息内容
 
+        # 7. 不满足任何条件
+        logger.debug(f"[HermesAdapter] 忽略消息（原因：不满足任何转发条件），内容：{消息内容[:30]}...")
         return False, 消息内容
 
     # ========== 用户指令 ==========
 
     @filter.command_group("hermes")
-    async def hermes_cmd(self, event: AstrMessageEvent):
+    async def hermes_cmd(self, event: AiocqhttpMessageEvent):
         pass
 
     @hermes_cmd.command("status")
-    async def cmd_status(self, event: AstrMessageEvent):
+    async def cmd_status(self, event: AiocqhttpMessageEvent):
         """查看 Hermes 适配器状态"""
         运行耗时 = time.time() - self.统计数据['start_time']
         小时数 = int(运行耗时 // 3600)
@@ -1021,15 +1098,229 @@ class Hermes适配器(Star):
         yield event.plain_result('\n'.join(输出行))
 
     @hermes_cmd.command("test")
-    async def cmd_test(self, event: AstrMessageEvent):
+    async def cmd_test(self, event: AiocqhttpMessageEvent):
         """测试与 Hermes 的连接"""
         if self._ws_已连接:
             yield event.plain_result('✅ WebSocket 已连接到 Hermes')
         else:
             yield event.plain_result('❌ WebSocket 未连接')
 
+    # ========== LLM 工具 ==========
+
+    @filter.llm_tool("hermes_agent")
+    async def hermes_agent(
+        self,
+        event: AiocqhttpMessageEvent,
+        task: str,
+        command: str = "",
+        args: str = "",
+    ) -> str:
+        """
+        调用 Hermes Agent 执行任务或命令。Hermes 是一个强大的 AI Agent，可以执行各种复杂任务。
+        当用户需要执行复杂任务、查询信息、处理数据、调用其他插件功能时，可以使用此工具。
+
+        Args:
+            task(string): 任务描述，详细说明需要完成什么任务
+            command(string): 具体要执行的 AstrBot 指令（可选，如 "点歌"、"群分析" 等）
+            args(string): 指令参数（可选，如歌曲名、群号等）
+        """
+        try:
+            # 如果没有指定群号，使用当前群
+            group_id = event.get_group_id()
+
+            # 如果有具体指令，直接执行
+            if command:
+                logger.info(f"[HermesAdapter] LLM工具执行指令: {command} {args}")
+
+                # 检查指令是否允许执行
+                可执行, 原因 = self._检查能否执行指令(command)
+                if not 可执行:
+                    return f"指令执行被拒绝: {原因}"
+
+                # 构建处理器缓存（如果需要）
+                if not self._处理器缓存:
+                    self._构建处理器缓存()
+
+                # 查找指令
+                实际指令 = self._别名到指令.get(command, command)
+                处理器信息 = self._处理器缓存.get(实际指令)
+
+                if not 处理器信息:
+                    可用指令 = list(self._处理器缓存.keys())[:20]
+                    return f"未找到指令: {command}。可用指令: {', '.join(可用指令)}"
+
+                # 执行指令
+                执行结果 = await self._内部执行指令(
+                    处理器信息=处理器信息,
+                    指令=实际指令,
+                    参数列表=args,
+                    用户id=event.get_sender_id(),
+                    用户名=event.get_sender_name(),
+                    群号=group_id
+                )
+
+                if 执行结果.get('success'):
+                    文本集合 = 执行结果.get('texts', [])
+                    图片集合 = 执行结果.get('images', [])
+
+                    结果部分 = []
+                    if 文本集合:
+                        结果部分.append("执行结果:\n" + "\n".join(文本集合))
+                    if 图片集合:
+                        结果部分.append(f"生成了 {len(图片集合)} 张图片")
+
+                    return "\n".join(结果部分) if 结果部分 else "指令执行成功"
+                else:
+                    return f"指令执行失败: {执行结果.get('error', '未知错误')}"
+
+            # 如果没有具体指令，但有任务描述，使用OneBot格式发送给Hermes
+            else:
+                logger.info(f"[HermesAdapter] LLM工具执行任务: {task}")
+
+                # 检查 WebSocket 连接
+                if not self._ws_已连接:
+                    return "Hermes Agent 未连接，请稍后再试"
+
+                # 获取触发关键词（名字）
+                名字 = self.触发关键词[0] if self.触发关键词 else "纳西妲"
+
+                # 构建带名字的消息内容
+                消息内容 = f"{名字}，{task}"
+
+                # 构建 OneBot v11 格式的事件消息
+                用户id = event.get_sender_id()
+                用户名 = event.get_sender_name()
+
+                onebot事件体 = self.构造请求体(event, 消息内容, group_id, 用户id, 用户名)
+
+                logger.debug(f"[HermesAdapter] LLM工具发送OneBot格式消息: {onebot事件体}")
+
+                # 通过 WebSocket 发送 OneBot 格式的消息
+                await self._ws_发送数据(await onebot事件体)
+                event.set_extra(self.已转发键, True)
+                self.统计数据['messages_forwarded'] += 1
+
+                return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
+
+        except Exception as 异常:
+            logger.error(f"[HermesAdapter] LLM工具执行失败: {异常}", exc_info=True)
+            return f"执行失败: {str(异常)}"
+
+    @filter.llm_tool("hermes_status")
+    async def hermes_status(self, _: AiocqhttpMessageEvent) -> str:
+        """
+        查询 Hermes Agent 和适配器的运行状态。
+        当用户询问 Hermes 是否在线、连接状态、已缓存指令数量等信息时使用。
+
+        Returns:
+            str: 状态信息，包括连接状态、运行时间、统计信息等
+        """
+        运行耗时 = time.time() - self.统计数据['start_time']
+        小时数 = int(运行耗时 // 3600)
+        分钟数 = int((运行耗时 % 3600) // 60)
+
+        ws状态 = "已连接" if self._ws_已连接 else "未连接"
+
+        状态信息 = [
+            f"Hermes 适配器状态:",
+            f"- WebSocket 连接: {ws状态}",
+            f"- 运行时间: {小时数}小时{分钟数}分钟",
+            f"- 已缓存指令: {len(self._处理器缓存)}个",
+            f"- 已缓存群: {len(self._群组事件)}个",
+            f"- 已转发消息: {self.统计数据['messages_forwarded']}条",
+            f"- 已执行指令: {self.统计数据['commands_executed']}次",
+            f"- 错误次数: {self.统计数据['errors']}次"
+        ]
+
+        return "\n".join(状态信息)
+
+    @filter.llm_tool("hermes_list_commands")
+    async def hermes_list_commands(self, _: AiocqhttpMessageEvent, category: str = "") -> str:
+        """
+        列出所有可通过 Hermes 执行的 AstrBot 指令。
+        当用户想知道有哪些指令可用、或者需要查找特定功能的指令时使用。
+
+        Args:
+            category (str): 指令分类过滤（可选），如 "音乐"、"宠物"、"好感度" 等
+
+        Returns:
+            str: 指令列表，按分类组织
+        """
+        # 构建处理器缓存（如果需要）
+        if not self._处理器缓存:
+            self._构建处理器缓存()
+
+        # 指令分类映射
+        分类映射 = {
+            '音乐': ['点歌', 'play', '搜歌', 'song', 'meting', 'kugou', 'kuwo', 'netease', 'qqmusic', 'tencent', 'cloudmusic', '网易', '酷狗', '酷我', 'QQ', '腾讯'],
+            '宠物': ['宠物', '领养', '喂食', '玩耍', '散步', '进化', '技能', '背包', '商店', '购买', '装备', '对决', '审判', '偷', '丢弃'],
+            '好感度': ['好感', '查看好感', '查询好感', '设置好感', '重置好感', '好感排行', '负好感', '印象', '设置印象'],
+            '群管理': ['群规', '添加群规', '删除群规', '设置群规', '群拉黑', '群解除拉黑', '屏蔽', '取消屏蔽', '拉黑', '解除拉黑', '黑名单'],
+            '系统': ['状态', '系统状态', '运行状态', '模型', '当前模型', '切换模型', '重启', '更新', '备份', '恢复'],
+            '生图': ['画图', '生图', '图片', '切换生图', '禁用生图', '启用生图', '特权生图'],
+            '表情包': ['表情', 'meme', '表情包', '表情列表', '表情启用', '表情禁用'],
+            '分析': ['群分析', '分析设置', '自然分析'],
+            '其他': []
+        }
+
+        # 按分类整理指令
+        分类字典 = {}
+        for 指令名称, 处理器信息 in self._处理器缓存.items():
+            插件名称 = 处理器信息['plugin']
+            指令描述 = 处理器信息['description']
+            别名集合 = 处理器信息['aliases']
+            是否管理员指令 = 处理器信息['is_admin']
+
+            所属分类 = '其他'
+            for 分类, 关键词 in 分类映射.items():
+                if any(kw in 指令名称 or kw in 指令描述 for kw in 关键词):
+                    所属分类 = 分类
+                    break
+                for 别名 in 别名集合:
+                    if any(kw in 别名 for kw in 关键词):
+                        所属分类 = 分类
+                        break
+
+            # 如果指定了分类，只返回该分类的指令
+            if category and 所属分类 != category:
+                continue
+
+            if 所属分类 not in 分类字典:
+                分类字典[所属分类] = []
+
+            用法 = 指令名称
+            if 别名集合:
+                用法 = f"{指令名称} (别名: {', '.join(别名集合[:3])})"
+
+            指令信息 = {
+                'name': 指令名称,
+                'description': 指令描述,
+                'usage': 用法,
+                'plugin': 插件名称,
+                'is_admin': 是否管理员指令
+            }
+
+            分类字典[所属分类].append(指令信息)
+
+        # 构建输出
+        输出行 = []
+        for 分类, 指令列表 in sorted(分类字典.items()):
+            输出行.append(f"\n【{分类}】")
+            for 指令 in 指令列表[:10]:  # 每个分类最多显示10个
+                管理员标记 = " [管理员]" if 指令['is_admin'] else ""
+                输出行.append(f"  - {指令['usage']}: {指令['description']}{管理员标记}")
+
+        if not 输出行:
+            if category:
+                return f"没有找到分类为 '{category}' 的指令"
+            else:
+                return "没有找到可用指令"
+
+        return f"可用指令列表 (共{len(self._处理器缓存)}个):" + "\n".join(输出行)
+
+    #有一些难以解决的问题，先不使用
     # @hermes_cmd.command("execute")
-    # async def cmd_execute(self, event: AstrMessageEvent,*, command):
+    # async def cmd_execute(self, event: AiocqhttpMessageEvent,*, command):
     #     """手动执行 Hermes 指令"""
     #     logger.info(f"接收到的参数：{command}")
     #     切割部分 = command.split(maxsplit=1)

@@ -8,11 +8,17 @@ help: |
   - 监听群消息，过滤后转发给 Hermes
   - 接收 Hermes 的指令执行请求
   - 通过 HTTP API 执行 AstrBot 指令
+  - 提供 LLM 工具，让 AI 可以调用 Hermes 执行复杂任务
   
   指令：
   /hermes status - 查看适配器状态
   /hermes test - 测试与 Hermes 的连接
-
+  
+  LLM 工具：
+  hermes_execute - 调用 Hermes Agent 执行任务或命令
+  hermes_status - 查询 Hermes Agent 和适配器的运行状态
+  hermes_list_commands - 列出所有可通过 Hermes 执行的 AstrBot 指令
+  
   API 端点：
   GET /api/health - 健康检查
   GET /api/commands - 列出所有指令
@@ -20,7 +26,7 @@ help: |
   GET /api/command/<name> - 获取指令详情
   POST /api/execute - 执行指令
   POST /api/send - 发送消息
-version: v2.0
+version: v3.0
 author: 懒大猫
 repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
