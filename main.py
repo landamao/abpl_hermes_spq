@@ -11,7 +11,7 @@ from aiohttp import web
 from astrbot.api.event import filter
 from astrbot.api.all import (
     Star, Context, AstrBotConfig, logger,
-    Plain, Image, At, Json,
+    Plain, Image, At, Json, Reply,
     AstrBotMessage, MessageMember, MessageType, MessageChain
 )
 
@@ -90,7 +90,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   - Hermes WebSocket: {self.hermes_ws_链接}")
         logger.info(f"[HermesAdapter]   - HTTP 服务器: {'启用' if self.启用_http_服务器 else '禁用'} (端口: {self.http_服务器_端口})")
         logger.info(f"[HermesAdapter]   - 触发关键词: {self.触发关键词}")
-        logger.info( "[HermesAdapter]   - 最后修改：4-23_16:44")
+        logger.info( "[HermesAdapter]   - 最后修改：2026-4-23_17:14")
 
     def _构建处理器缓存(self):
         """构建指令处理器缓存"""
@@ -981,8 +981,13 @@ class Hermes适配器(Star):
 
         原始消息链 = event.get_messages()  # 假设返回的是 List[MessageSegment]
 
-        # 删除所有 Plain 类型的元素，保留其他类型
-        新消息链 = [seg for seg in 原始消息链 if not isinstance(seg, Plain)]
+        # 过滤不兼容组件
+        新消息链 = [
+            seg
+            for seg in 原始消息链
+            if not isinstance(seg, Plain)
+               and not isinstance(seg, Reply)
+        ]
 
         # 追加新的 Plain 内容
         新消息链.append(Plain(text=消息内容))
