@@ -52,6 +52,7 @@ class Hermes适配器(Star):
         self.允许的用户 = 清理列表(config.get('allowed_users', []))
         self.转发所有消息 = config.get('forward_all_messages', False)
         self.最大消息长度 = config.get('max_message_length', 2000)
+        self.同时唤醒处理方式 = config.get('llm_hermes_conflict_mode', 'hermes_only')
 
         # /approve 和 /deny 授权配置
         self.approve_deny_启用 = config.get('approve_deny_enabled', True)
@@ -90,7 +91,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   - Hermes WebSocket: {self.hermes_ws_链接}")
         logger.info(f"[HermesAdapter]   - HTTP 服务器: {'启用' if self.启用_http_服务器 else '禁用'} (端口: {self.http_服务器_端口})")
         logger.info(f"[HermesAdapter]   - 触发关键词: {self.触发关键词}")
-        logger.info( "[HermesAdapter]   - 最后修改：2026-4-23_17:14")
+        logger.info( "[HermesAdapter]   - 最后修改：2026-4-23_17:56")
 
     def _构建处理器缓存(self):
         """构建指令处理器缓存"""
@@ -896,7 +897,7 @@ class Hermes适配器(Star):
 
     # ========== 消息监听和转发 ==========
 
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE, priority=-1)
     async def on_group_message(self, event: AiocqhttpMessageEvent):
         """监听群消息，存储 event 并转发给 Hermes"""
         消息内容 = event.get_message_str()
@@ -913,6 +914,9 @@ class Hermes适配器(Star):
         if not 应转发:
             return
 
+        if not self.是否转发(event):
+            return
+
         onebot事件体 = self.构造请求体(event, 消息内容, 群号, 用户id, 用户名)
         logger.debug(f"转发的消息体：{onebot事件体}")
 
@@ -920,6 +924,25 @@ class Hermes适配器(Star):
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1
         logger.info(f"[HermesAdapter] 已转发[{用户名}] 的消息到 Hermes：{消息内容[:50]}")
+
+    def 是否转发(self, event: AiocqhttpMessageEvent):
+        if self.同时唤醒处理方式 == 'hermes_only':
+            logger.info("[HermesAdapter] 终止事件，使用hermes")
+            event.stop_event()
+            return True
+        elif self.同时唤醒处理方式 == 'both':
+            if event.is_at_or_wake_command:
+                logger.info("[HermesAdapter] 已同时唤醒")
+            logger.info()
+            return True
+        elif self.同时唤醒处理方式 == 'llm_only':
+            if event.is_at_or_wake_command:
+                logger.info("[HermesAdapter] llm已唤醒，不使用hermes")
+                return False
+            logger.info("[HermesAdapter] llm未唤醒，使用hermes")
+            event.stop_event()
+            return True
+        return False
 
     async def 构造请求体(self, event: AiocqhttpMessageEvent, 消息内容: str, 群号: str, 用户id: str, 用户名: str) -> dict:
         """

@@ -94,5 +94,12 @@
     "type": "list",
     "hint": "允许使用 /approve 和 /deny 的用户 QQ 号",
     "default": []
+  },
+  "llm_hermes_conflict_mode": {
+    "description": "消息同时触发 LLM 唤醒和 Hermes 转发时的处理方式",
+    "type": "string",
+    "hint": "选择冲突时的行为：llm_only - 仅使用原始 LLM，不推送给 Hermes；hermes_only - 拦截 LLM 唤醒，仅推送 Hermes 处理；both - 同时触发 LLM 和 Hermes，建议选择前两项，同时唤醒可能产生大量消息回复导致混乱聊天",
+    "options": ["llm_only", "hermes_only", "both"],
+    "default": "hermes_only"
   }
 }

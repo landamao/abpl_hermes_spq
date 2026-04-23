@@ -123,6 +123,8 @@ systemctl restart astrbot   # 或使用你的启动方式
 | `max_message_length` | int | `2000` | 转发消息的最大长度（超出截断） |
 | `approve_deny_enabled` | bool | `true` | 是否启用 `/approve` 和 `/deny` 特殊指令 |
 | `approve_deny_users` | list | `[]` | 允许使用 `/approve` `/deny` 的用户 QQ 号 |
+| `llm_hermes_conflict_mode` | string | `hermes_only` | **LLM 与 Hermes 同时触发时的冲突处理模式**。<br/>- `hermes_only`：拦截 LLM 唤醒，仅推送 Hermes 处理（推荐，避免重复回答）<br/>- `llm_only`：仅使用原始 LLM，不推送给 Hermes<br/>- `both`：同时触发 LLM 和 Hermes（可能导致重复消息，造成聊天混乱） |
+
 
 ## 📡 消息转发（AstrBot → Hermes）
 
@@ -415,4 +417,4 @@ AI 决策后会自动调用它们。
 
 **如果遇到问题，欢迎提交 Issue 或联系作者。**
 
-最后修改：2026-4-23_16:59
+最后修改：2026-4-23_17:56

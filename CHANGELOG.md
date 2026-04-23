@@ -1,5 +1,40 @@
 # 更新日志
 
+## [v3.1] - 2026-04-23
+
+### ✨ 新增
+
+- **冲突处理模式配置项 `llm_hermes_conflict_mode`**  
+  当一条消息同时满足 Hermes 转发条件和 AstrBot LLM 唤醒条件时，可通过该配置选择处理策略：
+  - `hermes_only`（默认）：终止 LLM 处理器，仅转发给 Hermes，避免重复回答。
+  - `llm_only`：仅使用原始 LLM，不转发给 Hermes。
+  - `both`：同时触发 LLM 和 Hermes（可能导致混乱，仅供测试）。
+
+- **消息事件优先级控制**  
+  监听器优先级设置为 `priority=-1`，确保在 LLM 处理前优先拦截并决定是否终止事件传播。
+
+### 🔧 改进
+
+- **更精准的消息链过滤**  
+  在构造 OneBot 格式消息时，额外过滤掉 `Reply`（回复）组件，防止不兼容的段被转发给 Hermes。
+
+- **内部冲突判断逻辑拆分**  
+  新增 `是否转发(event)` 方法，根据 `llm_hermes_conflict_mode` 和事件的 `is_at_or_wake_command` 属性决定是否拦截事件，提高代码可读性。
+
+### 🐛 修复
+
+- **修复同时唤醒时可能出现的双重回复问题**  
+  通过 `event.stop_event()` 机制，在 `hermes_only` 模式下彻底阻止 LLM 处理器被调用。
+
+### 📝 文档
+
+- 更新 README，补充 `llm_hermes_conflict_mode` 配置说明及冲突处理行为描述。
+
+---
+
+**升级建议**：  
+从 v3.0 升级到 v3.1 无需修改配置，默认 `llm_hermes_conflict_mode = "hermes_only"` 可有效避免 LLM 和 Hermes 同时回复。如果您希望保留旧版“同时触发”的行为，请手动将配置改为 `both`。
+
 ## [v3.0] - 2026-04-23
 
 ### ✨ 新增
@@ -49,10 +84,6 @@
 - **`hermes_ws_url` 配置含路径时的连接错误**  
   现在支持 WebSocket 地址中包含路径（例如 `ws://host:6701/ws`）。
 
-### 📦 依赖变更
-
-无新增依赖，继续使用 `aiohttp>=3.8.0` 和 `websockets>=11.0`。
-
 ### 📝 文档更新
 
 - README 完全重写，补充了 LLM 工具使用说明。
@@ -63,4 +94,4 @@
 **升级建议**：  
 若你正在使用 v2.0，替换插件目录后重启 AstrBot 即可自动升级。无需修改现有配置，新配置项 `approve_deny_enabled` 和 `approve_deny_users` 有默认值，不影响旧行为。
 
-最后修改：2026-4-23_16:59
+最后修改：2026-4-23_17:56
