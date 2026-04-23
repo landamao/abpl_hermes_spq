@@ -26,10 +26,10 @@ help: |
   GET /api/command/<name> - 获取指令详情
   POST /api/execute - 执行指令
   POST /api/send - 发送消息
-version: v3.2
+version: v3.3
 author: 懒大猫
 repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
   - aiocqhttp
 
-#最后修改：2026-4-24 6:38
+#最后修改：2026-4-24 6:47
