@@ -1,6 +1,6 @@
 # Hermes Agent 适配器插件
 
-实现 AstrBot 与 [Hermes Agent](https://github.com/landamao/abpl_hermes_spq) 的双向通信，让 Hermes 能够接收 QQ 群消息、执行 AstrBot 的所有插件指令。
+实现 **AstrBot** 与 **Hermes Agent** 的双向通信，让 Hermes 能够接收 QQ 群消息、执行 AstrBot 的所有插件指令。
 
 ## ✨ 功能特性
 
@@ -362,7 +362,8 @@ curl -X POST http://localhost:8567/api/send \
 
 ## 🔗 相关链接
 
-- [Hermes Agent](https://github.com/landamao/abpl_hermes_spq)
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+- [Hermes OneBot v11 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)
 
 ---
 
