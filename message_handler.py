@@ -152,7 +152,7 @@ async def build_onebot_event(
         "sender": {
             "user_id": int(用户id),
             "nickname": 用户名,
-            "card": 用户名
+            "card": 用户名,
         }
     }
 
@@ -161,6 +161,11 @@ async def build_onebot_event(
         事件体["message_type"] = "group"
         事件体["sub_type"] = "normal"
         事件体["group_id"] = int(群号)
+        try:
+            事件体["sender"]["role"] =  event.message_obj.raw_message.sender['role']
+        except Exception as e:
+            logger.warning(f"获取用户 {用户名} 群身份失败")
+
     else:
         事件体["message_type"] = "private"
         事件体["sub_type"] = event.get_message_type()

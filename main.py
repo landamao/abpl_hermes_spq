@@ -134,7 +134,7 @@ class Hermes适配器(Star):
         logger.info("[HermesAdapter] ═══ 指令过滤 ═══")
         logger.info(f"[HermesAdapter]   白名单: {self.指令白名单 or '无限制'}")
         logger.info(f"[HermesAdapter]   黑名单: {self.指令黑名单}")
-        logger.debug("[HermesAdapter]   最后修改：2026-4-25 4:17")
+        logger.debug("[HermesAdapter]   最后修改：2026-4-25 4:58")
 
     # ========== 缓存管理 ==========
 

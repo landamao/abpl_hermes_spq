@@ -79,10 +79,10 @@ help: |
   🔗 相关链接：
   GitHub: https://github.com/landamao/abpl_hermes_spq
   插件目录: /root/AstrBot/data/plugins/Hermes适配器/
-version: v3.7.1
+version: v3.7.2
 author: 懒大猫
 repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
   - aiocqhttp
 
-#最后修改：2026-4-25 4:17
+#最后修改：2026-4-25 4:58
