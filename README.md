@@ -6,6 +6,25 @@
 
 ---
 
+## 📖 目录
+- [🔮 核心愿景](#-核心愿景ai-双模型协同的终极形态)
+- [⚡ 双向神经接口架构](#-双向神经接口架构)
+- [🎯 杀手级能力矩阵](#-杀手级能力矩阵)
+- [🎬 真实场景演示](#-真实场景演示)
+- [🛠️ 技术亮点](#️-技术亮点)
+- [📡 完整 API 矩阵](#-完整-api-矩阵)
+- [🎮 用户侧管理指令](#-用户侧管理指令)
+- [⚙️ 灵活的配置哲学](#️-灵活的配置哲学)
+- [🏗️ 模块化架构](#️-模块化架构)
+- [🚀 快速部署（简略版）](#-快速部署简略版)
+- [📋 详细操作指引（从零开始）](#-详细操作指引从零开始)
+- [📈 版本演进](#-版本演进)
+- [🔒 安全第一](#-安全第一)
+- [💡 为什么这是革命性的？](#-为什么这是革命性的)
+- [🔗 相关链接](#-相关链接)
+
+---
+
 ## 🔮 核心愿景：AI 双模型协同的终极形态
 
 你是否有过这样的困扰？
@@ -248,16 +267,16 @@ Hermes适配器/
 
 ---
 
-## 🚀 快速部署
+## 🚀 快速部署（简略版）
 
 ```bash
-# 1. 复制插件
+# 1. 复制插件到 AstrBot
 cp -r hermes_adapter /root/AstrBot/data/plugins/
 
 # 2. 安装依赖
 pip install aiohttp websockets
 
-# 3. 启动 Hermes 的反向 WebSocket 服务
+# 3. 启动 Hermes 的反向 WebSocket 服务（具体见下方详细指引）
 hermes server --ws-reverse --port 6701
 
 # 4. 重启 AstrBot
@@ -268,6 +287,79 @@ systemctl restart astrbot
 
 # 完成。你的群聊现在拥有了双核 AI。
 ```
+
+> ⚠️ **如果你还没有安装 Hermes 或 OneBot 适配器，请务必查看 [详细操作指引（从零开始）](#-详细操作指引从零开始) 完成基础环境搭建。**
+
+---
+
+## 📋 详细操作指引（从零开始）
+
+> 💡 如果你已经熟悉基础部署，可直接跳回 [快速部署（简略版）](#-快速部署简略版) 查看命令。
+
+### 前置要求
+- 已部署 AstrBot，且使用 NapCat（或兼容 OneBot v11 的实现）连接 QQ
+- 本插件已复制到 AstrBot 的插件目录（默认 `data/plugins/Hermes适配器/`）
+
+### 第一步：安装 Hermes Agent 本体
+如果你还没有安装 Hermes，请先访问 **[Hermes Agent 官方仓库](https://github.com/NousResearch/hermes-agent)**，按照其中的说明进行安装。
+
+> Hermes 通常支持 Docker 部署或直接 Python 安装。安装完成后，确保 `hermes` 命令可用（能够执行 `hermes agent` 或 `hermes server`）。
+
+### 第二步：安装 Hermes QQ OneBot 适配器
+Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)** 进行桥接。
+
+1. 克隆或下载该适配器仓库：
+   ```bash
+   git clone https://github.com/chrysoljq/hermes_qq_onebot.git
+   cd hermes_qq_onebot
+   ```
+2. 按照其 README 中的依赖安装说明，配置必要的 Python 环境。
+3. 阅读该仓库的配置文档，正确填写配置文件（通常是一个 `config.yaml` 或 `config.json`）。你需要重点关注以下内容：
+   - **Hermes Agent 的连接地址**（本地 Hermes 实例的 API 地址）
+   - **OneBot 反向 WebSocket 监听端口**（例如 `6701`，本适配器将会连接这个端口）
+   - **模型/LLM 配置**：将 Hermes 使用的底层大模型配置正确（API key、模型名称等）
+
+### 第三步：启动 Hermes OneBot 网关
+在 Hermes OneBot 适配器目录下，启动服务：
+```bash
+python main.py   # 或根据其文档使用特定命令
+```
+确保日志中显示 WebSocket 服务已启动，并监听在指定端口（默认 `6701`）。
+
+### 第四步：在 NapCat 中配置 HTTP 服务器
+本适配器有一个内置的 HTTP API 服务器，需要与 NapCat 配合使用，以便 Hermes 可以调用 AstrBot 的插件指令。
+
+1. 打开 NapCat 的 `config.yaml` 或 WebUI。
+2. 添加一个 HTTP 服务器，地址填写：
+   - 如果 NapCat 与本插件部署在同一台机器：`http://127.0.0.1:8567` （端口对应本插件的 `http_server_port`，默认 8567）
+   - 如果跨机器，请使用实际 IP。
+3. 如果本插件的 HTTP 服务器启用了 Token（`http_server_token` 非空），则需要在 NapCat 的请求头中携带 `Authorization: Bearer <token>`。
+
+### 第五步：配置本插件的连接信息
+打开 AstrBot WebUI，找到 “Hermes适配器” 插件配置页面，或直接编辑 `data/plugins/Hermes适配器/_conf_schema.json` 中的默认值：
+
+- **`hermes_ws_url`**：填写 `ws://127.0.0.1:6701`（与第二步中 Hermes OneBot 适配器的 WebSocket 端口一致）
+- **`onebot_api_url`**：填写 NapCat 的 HTTP API 地址，例如 `http://127.0.0.1:5700`
+- **`http_server_port`**：保持 `8567`（与 NapCat 中配置的 HTTP 服务器端口对应）
+- 根据需求设置消息过滤规则（关键词、白名单等）
+
+### 第六步：启动并验证连接
+1. 重启 AstrBot 或重新加载插件。
+2. 在 AstrBot 日志中查找以下关键输出：
+   - `"正在连接到 Hermes: ws://127.0.0.1:6701"`
+   - `"WebSocket 已连接到 Hermes"`
+3. 同时在 Hermes OneBot 适配器的日志中，应能看到来自 `astrbot` 的连接信息。
+4. 在 QQ 群中发送配置好的触发关键词，例如 “纳西妲 你好”，观察 Hermes 是否返回回复。
+
+### 第七步：配置 Hermes 模型与任务能力
+最后，在 Hermes 的配置中指定你希望使用的大模型（如 GPT-4、DeepSeek 等），并确保 Hermes 的 Agent 功能（工具、浏览器、代码解释器等）已开启。
+
+至此，双核协同系统部署完成。你可以测试：
+- 简单指令（点歌、宠物）由 AstrBot 直接处理
+- 复杂任务（写脚本、爬取信息）由 Hermes Agent 自主执行
+- 通过 `/hermes status` 查看运行状态
+
+> 💡 提示：如果连接失败，请检查防火墙、端口是否被占用，以及 Hermes OneBot 适配器的 WebSocket 地址与端口是否与本插件配置完全一致。
 
 ---
 
@@ -331,8 +423,4 @@ systemctl restart astrbot
 
 
 *最后修改：2026-04-24*  
-*作者：懒大猫*  
-
-## 许可证
-
-MIT
+*作者：懒大猫*
