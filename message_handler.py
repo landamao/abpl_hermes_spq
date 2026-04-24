@@ -58,7 +58,7 @@ def should_forward(
     名字 = 触发关键词[0] if 触发关键词 else ""
 
     # 4. /approve 命令处理
-    if approve_启用 and 消息内容.startswith("approve"):
+    if approve_启用 and 消息内容.startswith(("approve", "/approve")):
         if next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith("/"):
             if not _check_approve_deny_permission(用户id, approve_允许用户):
                 logger.info(f"[HermesAdapter] /approve 被拒绝: 用户 {用户id} 无权限")
@@ -67,7 +67,7 @@ def should_forward(
             return True, f"/{消息内容}\n{名字}"
 
     # 4.5 /deny 命令处理
-    if deny_启用 and 消息内容.startswith("deny"):
+    if deny_启用 and 消息内容.startswith(("deny", "/deny")):
         if next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith("/"):
             if not _check_approve_deny_permission(用户id, deny_允许用户):
                 logger.info(f"[HermesAdapter] /deny 被拒绝: 用户 {用户id} 无权限")

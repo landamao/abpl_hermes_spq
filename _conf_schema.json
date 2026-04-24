@@ -25,7 +25,7 @@
         }
     },
     "http_server": {
-        "description": "HTTP API 服务器配置",
+        "description": "HTTP API 服务器",
         "type": "object",
         "hint": "用于让 Hermes 调用 AstrBot 指令的 HTTP 服务器",
         "items": {
@@ -50,7 +50,7 @@
         }
     },
     "message_filter": {
-        "description": "消息过滤配置",
+        "description": "消息过滤",
         "type": "object",
         "hint": "控制哪些消息会被转发给 Hermes",
         "items": {
@@ -73,7 +73,7 @@
                 "type": "list",
                 "description": "允许的群组",
                 "default": [],
-                "hint": "留空表示所有群组都可以触发。填写群号列表，只有这些群的消息会被转发。",
+                "hint": "留空表示所有群组都可以触发。填写群号列表。",
                 "items": {
                     "type": "string"
                 }
@@ -82,7 +82,7 @@
                 "type": "list",
                 "description": "允许的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以触发。填写用户ID列表，只有这些用户的消息会被转发。",
+                "hint": "留空表示所有用户都可以触发。填写用户ID列表。",
                 "items": {
                     "type": "string"
                 }
@@ -91,7 +91,7 @@
                 "type": "bool",
                 "description": "转发所有消息",
                 "default": false,
-                "hint": "是否转发所有消息给 Hermes（慎用，会产生大量请求）"
+                "hint": "是否转发所有消息给 Hermes（慎用）"
             },
             "max_message_length": {
                 "type": "int",
@@ -102,7 +102,7 @@
         }
     },
     "conflict_mode": {
-        "description": "冲突处理策略",
+        "description": "冲突处理",
         "type": "object",
         "hint": "当 LLM 和 Hermes 同时被唤醒时的处理方式",
         "items": {
@@ -111,41 +111,41 @@
                 "description": "冲突处理模式",
                 "default": "hermes_only",
                 "options": ["hermes_only", "both", "llm_only"],
-                "hint": "hermes_only=只用 Hermes 处理；both=同时唤醒，都处理；llm_only=优先用本地 LLM"
+                "hint": "hermes_only=只用Hermes；both=都处理；llm_only=优先用本地LLM"
             }
         }
     },
     "approve_deny": {
-        "description": "授权命令配置",
+        "description": "授权命令",
         "type": "object",
-        "hint": "配置 /approve 和 /deny 命令的权限控制",
+        "hint": "配置 /approve 和 /deny 命令的权限",
         "items": {
             "approve_enabled": {
                 "type": "bool",
-                "description": "启用 /approve 命令",
+                "description": "启用 /approve",
                 "default": true,
-                "hint": "是否允许使用 /approve 命令来授权 Hermes 指令执行"
+                "hint": "是否允许使用 /approve 命令"
             },
             "approve_users": {
                 "type": "list",
-                "description": "允许使用 /approve 的用户",
+                "description": "允许 /approve 的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以使用。填写用户ID列表，只有列表中的用户才能使用 /approve 命令。",
+                "hint": "留空表示所有用户都可以使用",
                 "items": {
                     "type": "string"
                 }
             },
             "deny_enabled": {
                 "type": "bool",
-                "description": "启用 /deny 命令",
+                "description": "启用 /deny",
                 "default": true,
-                "hint": "是否允许使用 /deny 命令来拒绝 Hermes 指令执行"
+                "hint": "是否允许使用 /deny 命令"
             },
             "deny_users": {
                 "type": "list",
-                "description": "允许使用 /deny 的用户",
+                "description": "允许 /deny 的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以使用。填写用户ID列表，只有列表中的用户才能使用 /deny 命令。",
+                "hint": "留空表示所有用户都可以使用",
                 "items": {
                     "type": "string"
                 }
@@ -153,15 +153,15 @@
         }
     },
     "command_filter": {
-        "description": "指令过滤配置",
+        "description": "指令过滤",
         "type": "object",
-        "hint": "控制哪些 AstrBot 指令可以通过 HTTP API 执行",
+        "hint": "控制哪些 AstrBot 指令可以通过 API 执行",
         "items": {
             "command_whitelist": {
                 "type": "list",
                 "description": "指令白名单",
                 "default": [],
-                "hint": "留空表示不限制。填写指令名称列表，只有这些指令可以通过 API 执行。",
+                "hint": "留空表示不限制",
                 "items": {
                     "type": "string"
                 }

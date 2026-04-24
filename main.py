@@ -39,38 +39,48 @@ class Hermes适配器(Star):
             return [i.strip() for i in 列表 if i.strip()]
 
         # ========== 配置项 ==========
+        # 读取各分类配置
+        连接配置 = config.get('connection', {})
+        http配置 = config.get('http_server', {})
+        过滤配置 = config.get('message_filter', {})
+        冲突配置 = config.get('conflict_mode', {})
+        approve配置 = config.get('approve_deny', {})
+        指令配置 = config.get('command_filter', {})
+
         # WebSocket 连接到 Hermes
-        self.hermes_ws_链接 = config.get('hermes_ws_url', 'ws://127.0.0.1:6701')
-        self.hermes_访问令牌 = config.get('hermes_access_token', '')
+        self.hermes_ws_链接 = 连接配置.get('hermes_ws_url', 'ws://127.0.0.1:6701')
+        self.hermes_访问令牌 = 连接配置.get('hermes_access_token', '')
 
         # OneBot API 地址
-        self.onebot_api_地址 = config.get('onebot_api_url', 'http://127.0.0.1:5700')
+        self.onebot_api_地址 = 连接配置.get('onebot_api_url', 'http://127.0.0.1:5700')
 
         # HTTP API 服务器
-        self.启用_http_服务器 = config.get('enable_http_server', True)
-        self.http_服务器_端口 = config.get('http_server_port', 8567)
-        self.http_服务器_令牌 = config.get('http_server_token', '')
+        self.启用_http_服务器 = http配置.get('enable_http_server', True)
+        self.http_服务器_端口 = http配置.get('http_server_port', 8567)
+        self.http_服务器_令牌 = http配置.get('http_server_token', '')
 
         # 消息过滤配置
-        self.触发关键词 = config.get('trigger_keywords', ['纳西妲', 'hermes', 'Hermes'])
-        self.触发艾特机器人 = config.get('trigger_at_bot', True)
-        self.允许的群组 = 清理列表(config.get('allowed_groups', []))
-        self.允许的用户 = 清理列表(config.get('allowed_users', []))
-        self.转发所有消息 = config.get('forward_all_messages', False)
-        self.最大消息长度 = config.get('max_message_length', 2000)
-        self.同时唤醒处理方式 = config.get('llm_hermes_conflict_mode', 'hermes_only')
+        self.触发关键词 = 过滤配置.get('trigger_keywords', ['纳西妲', 'hermes', 'Hermes'])
+        self.触发艾特机器人 = 过滤配置.get('trigger_at_bot', True)
+        self.允许的群组 = 清理列表(过滤配置.get('allowed_groups', []))
+        self.允许的用户 = 清理列表(过滤配置.get('allowed_users', []))
+        self.转发所有消息 = 过滤配置.get('forward_all_messages', False)
+        self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
+
+        # 冲突处理方式
+        self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
 
         # /approve 授权配置
-        self.approve_启用 = config.get('approve_enabled', True)
-        self.approve_允许用户 = 清理列表(config.get('approve_users', []))
+        self.approve_启用 = approve配置.get('approve_enabled', True)
+        self.approve_允许用户 = 清理列表(approve配置.get('approve_users', []))
 
         # /deny 授权配置
-        self.deny_启用 = config.get('deny_enabled', True)
-        self.deny_允许用户 = 清理列表(config.get('deny_users', []))
+        self.deny_启用 = approve配置.get('deny_enabled', True)
+        self.deny_允许用户 = 清理列表(approve配置.get('deny_users', []))
 
         # 指令执行配置
-        self.指令白名单 = 清理列表(config.get('command_whitelist', []))
-        self.指令黑名单 = config.get('command_blacklist', ['重启', '关机', '更新'])
+        self.指令白名单 = 清理列表(指令配置.get('command_whitelist', []))
+        self.指令黑名单 = 指令配置.get('command_blacklist', ['重启', '关机', '更新'])
 
         # ========== 内部状态 ==========
         self._http_运行器 = None
@@ -102,10 +112,29 @@ class Hermes适配器(Star):
         self.已转发键 = "[HermesAdapter] 已转发"
 
         logger.info("[HermesAdapter] 插件已加载 (WebSocket 版本)")
-        logger.info(f"[HermesAdapter]   - Hermes WebSocket: {self.hermes_ws_链接}")
-        logger.info(f"[HermesAdapter]   - HTTP 服务器: {'启用' if self.启用_http_服务器 else '禁用'} (端口: {self.http_服务器_端口})")
-        logger.info(f"[HermesAdapter]   - 触发关键词: {self.触发关键词}")
-        logger.debug("[HermesAdapter]   - 最后修改：2026-4-24 6:34")
+        logger.info("[HermesAdapter] ═══ 连接配置 ═══")
+        logger.info(f"[HermesAdapter]   Hermes WebSocket: {self.hermes_ws_链接}")
+        logger.info(f"[HermesAdapter]   OneBot API: {self.onebot_api_地址}")
+        logger.info("[HermesAdapter] ═══ HTTP 服务器 ═══")
+        logger.info(f"[HermesAdapter]   启用: {'是' if self.启用_http_服务器 else '否'}")
+        logger.info(f"[HermesAdapter]   端口: {self.http_服务器_端口}")
+        logger.info(f"[HermesAdapter]   令牌: {'已设置' if self.http_服务器_令牌 else '无'}")
+        logger.info("[HermesAdapter] ═══ 消息过滤 ═══")
+        logger.info(f"[HermesAdapter]   触发关键词: {self.触发关键词}")
+        logger.info(f"[HermesAdapter]   @机器人触发: {'是' if self.触发艾特机器人 else '否'}")
+        logger.info(f"[HermesAdapter]   允许的群组: {self.允许的群组 or '全部'}")
+        logger.info(f"[HermesAdapter]   允许的用户: {self.允许的用户 or '全部'}")
+        logger.info(f"[HermesAdapter]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
+        logger.info(f"[HermesAdapter]   最大消息长度: {self.最大消息长度}")
+        logger.info("[HermesAdapter] ═══ 冲突处理 ═══")
+        logger.info(f"[HermesAdapter]   模式: {self.同时唤醒处理方式}")
+        logger.info("[HermesAdapter] ═══ 授权命令 ═══")
+        logger.info(f"[HermesAdapter]   /approve: {'启用' if self.approve_启用 else '禁用'} (用户: {self.approve_允许用户 or '全部'})")
+        logger.info(f"[HermesAdapter]   /deny: {'启用' if self.deny_启用 else '禁用'} (用户: {self.deny_允许用户 or '全部'})")
+        logger.info("[HermesAdapter] ═══ 指令过滤 ═══")
+        logger.info(f"[HermesAdapter]   白名单: {self.指令白名单 or '无限制'}")
+        logger.info(f"[HermesAdapter]   黑名单: {self.指令黑名单}")
+        logger.debug("[HermesAdapter]   最后修改：2026-4-24 12:15")
 
     # ========== 缓存管理 ==========
 
