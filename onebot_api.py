@@ -150,9 +150,14 @@ async def handle_api_request(
             params = {"group_id": 参数.get('group_id'), "user_id": 参数.get('user_id')}
             async with session.get(url, params=params) as resp:
                 return await resp.json()
-
+        elif 动作 == 'friend_poke':
+            url = f"{onebot_url}/friend_poke"
+            params = {"user_id":参数.get('user_id')}
+            async with session.get(url, params=params) as resp:
+                return await resp.json()
         else:
             logger.warning(f"[HermesAdapter] 未支持的 API 操作: {动作}")
+            logger.debug(f"原始数据：{数据}")
             return {"status": "failed", "retcode": 100, "msg": f"未支持的操作: {动作}", "data": None}
 
     except Exception as e:

@@ -66,7 +66,9 @@ async def ws_send(adapter, 数据: dict):
         try:
             await adapter.ws_连接.send(json.dumps(数据, ensure_ascii=False))
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 发送失败: {e}")
+            logger.error(f"[HermesAdapter] WebSocket 发送失败: \n{e}", exc_info=True)
+            logger.error("")
+            logger.debug(f"发送失败，原始数据：\n{数据}")
             adapter.ws_已连接 = False
 
 
