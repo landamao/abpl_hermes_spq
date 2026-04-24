@@ -33,9 +33,9 @@ async def handle_health(adapter) -> web.Response:
         'status': 'ok',
         'service': 'hermes_adapter',
         'timestamp': time.time(),
-        'ws_connected': adapter._ws_已连接,
-        'commands_cached': len(adapter._处理器缓存),
-        'groups_cached': list(adapter._群组事件.keys())
+        'ws_connected': adapter.ws_已连接,
+        'commands_cached': len(adapter.处理器缓存),
+        'groups_cached': list(adapter.群组事件.keys())
     })
 
 
@@ -46,8 +46,8 @@ async def handle_stats(请求: web.Request, adapter) -> web.Response:
     return web.json_response({
         'stats': adapter.统计数据,
         'uptime_seconds': time.time() - adapter.统计数据['start_time'],
-        'ws_connected': adapter._ws_已连接,
-        'groups_cached': list(adapter._群组事件.keys())
+        'ws_connected': adapter.ws_已连接,
+        'groups_cached': list(adapter.群组事件.keys())
     })
 
 
@@ -56,7 +56,7 @@ async def handle_list_commands(请求: web.Request, adapter) -> web.Response:
     if not verify_auth(请求, adapter.http_服务器_令牌):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     指令集合 = {}
-    for 指令名称, 处理器信息 in adapter._处理器缓存.items():
+    for 指令名称, 处理器信息 in adapter.处理器缓存.items():
         插件名称 = 处理器信息['plugin']
         if 插件名称 not in 指令集合:
             指令集合[插件名称] = []
@@ -66,16 +66,16 @@ async def handle_list_commands(请求: web.Request, adapter) -> web.Response:
             'aliases': 处理器信息['aliases'],
             'is_admin': 处理器信息['is_admin']
         })
-    return web.json_response({'total': len(adapter._处理器缓存), 'commands': 指令集合})
+    return web.json_response({'total': len(adapter.处理器缓存), 'commands': 指令集合})
 
 
 async def handle_hermes_commands(请求: web.Request, adapter) -> web.Response:
     """为 Hermes 提供指令列表（带分类）"""
     if not verify_auth(请求, adapter.http_服务器_令牌):
         return web.json_response({'error': 'Unauthorized'}, status=401)
-    if not adapter._处理器缓存:
-        adapter._rebuild_cache()
-    分类字典 = categorize_commands(adapter._处理器缓存)
+    if not adapter.处理器缓存:
+        adapter.rebuild_cache()
+    分类字典 = categorize_commands(adapter.处理器缓存)
     指令列表 = []
     for 分类, items in 分类字典.items():
         指令列表.extend(items)
@@ -93,15 +93,15 @@ async def handle_command_detail(请求: web.Request, adapter) -> web.Response:
     if not verify_auth(请求, adapter.http_服务器_令牌):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     指令名称 = 请求.match_info.get('command_name', '')
-    if not adapter._处理器缓存:
-        adapter._rebuild_cache()
-    处理器信息 = resolve_command(指令名称, adapter._别名到指令, adapter._处理器缓存)
+    if not adapter.处理器缓存:
+        adapter.rebuild_cache()
+    处理器信息 = resolve_command(指令名称, adapter.别名到指令, adapter.处理器缓存)
     if not 处理器信息:
         return web.json_response({
             'error': f'未找到指令: {指令名称}',
-            'available_commands': list(adapter._处理器缓存.keys())[:20]
+            'available_commands': list(adapter.处理器缓存.keys())[:20]
         }, status=404)
-    实际指令 = adapter._别名到指令.get(指令名称, 指令名称)
+    实际指令 = adapter.别名到指令.get(指令名称, 指令名称)
     return web.json_response({
         'command': 实际指令,
         'description': 处理器信息['description'],
@@ -131,10 +131,10 @@ async def handle_execute(请求: web.Request, adapter) -> web.Response:
         if not 可执行:
             return web.json_response({'success': False, 'error': 原因}, status=403)
 
-        if not adapter._处理器缓存:
-            adapter._rebuild_cache()
+        if not adapter.处理器缓存:
+            adapter.rebuild_cache()
 
-        处理器信息 = resolve_command(提取命令, adapter._别名到指令, adapter._处理器缓存)
+        处理器信息 = resolve_command(提取命令, adapter.别名到指令, adapter.处理器缓存)
         if not 处理器信息:
             return web.json_response({'success': False, 'error': f'未找到指令: {提取命令}'}, status=404)
 
@@ -143,7 +143,7 @@ async def handle_execute(请求: web.Request, adapter) -> web.Response:
 
         return web.json_response({
             'success': True,
-            'command': adapter._别名到指令.get(提取命令.lstrip('/'), 提取命令),
+            'command': adapter.别名到指令.get(提取命令.lstrip('/'), 提取命令),
             'args': 提取参数,
             'result': 执行结果
         })
@@ -168,7 +168,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
         else:
             消息字符串 = 指令名称
 
-        已存事件 = adapter._群组事件.get(群号) if 群号 else adapter._私聊事件.get(用户id)
+        已存事件 = adapter.群组事件.get(群号) if 群号 else adapter.私聊事件.get(用户id)
 
         if 已存事件:
             事件对象 = copy.copy(已存事件)
@@ -263,15 +263,15 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
             json数据 = 组件.data if hasattr(组件, 'data') else {}
             if json数据:
                 onebot消息内容 = [{"type": "json", "data": {"data": json.dumps(json数据)}}]
-                已发消息.append(await send_cq(adapter._会话, adapter.onebot_api_地址, 群号, onebot消息内容))
+                已发消息.append(await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容))
                 logger.info("[HermesAdapter] 已通过 OneBot 发送 JSON 消息")
         elif hasattr(组件, 'text') and 组件.text:
-            已发消息.append(await send_text(adapter._会话, adapter.onebot_api_地址, 群号, 组件.text))
+            已发消息.append(await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text))
             logger.info(f"[HermesAdapter] 已通过 OneBot 发送文本: {组件.text[:50]}...")
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
                 onebot消息内容 = [{"type": "image", "data": {"file": 组件.url}}]
-                已发消息.append(await send_cq(adapter._会话, adapter.onebot_api_地址, 群号, onebot消息内容))
+                已发消息.append(await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容))
                 logger.info("[HermesAdapter] 已通过 OneBot 发送图片")
 
 
@@ -300,8 +300,8 @@ async def start_http_server(adapter):
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', adapter.http_服务器_端口)
         await site.start()
-        adapter._http_运行器 = runner
-        adapter._http_站点 = site
+        adapter.http_运行器 = runner
+        adapter.http_站点 = site
         logger.info(f"[HermesAdapter] HTTP 服务器已启动: http://0.0.0.0:{adapter.http_服务器_端口}")
     except Exception as e:
         logger.error(f"[HermesAdapter] 启动 HTTP 服务器失败: {e}")
@@ -309,7 +309,7 @@ async def start_http_server(adapter):
 
 async def stop_http_server(adapter):
     """停止 HTTP 服务器"""
-    if adapter._http_站点:
-        await adapter._http_站点.stop()
-    if adapter._http_运行器:
-        await adapter._http_运行器.cleanup()
+    if adapter.http_站点:
+        await adapter.http_站点.stop()
+    if adapter.http_运行器:
+        await adapter.http_运行器.cleanup()

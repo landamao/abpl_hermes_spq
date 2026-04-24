@@ -6,7 +6,6 @@ WebSocket 客户端模块
 import json
 import asyncio
 import websockets
-from typing import Optional
 from astrbot.api.all import logger
 
 from .onebot_api import handle_api_request, build_api_response, send_text, send_cq
@@ -26,9 +25,9 @@ async def ws_connect(adapter):
         ping_interval=20,
         ping_timeout=60
     ) as ws:
-        adapter._ws_连接 = ws
-        adapter._ws_已连接 = True
-        adapter._重连延迟 = 1.0
+        adapter.ws_连接 = ws
+        adapter.ws_已连接 = True
+        adapter.重连延迟 = 1.0
 
         logger.info("[HermesAdapter] WebSocket 已连接到 Hermes")
 
@@ -51,24 +50,24 @@ async def ws_loop(adapter):
         except Exception as e:
             logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}")
 
-        if adapter._ws_已连接:
-            adapter._ws_已连接 = False
+        if adapter.ws_已连接:
+            adapter.ws_已连接 = False
             logger.info("[HermesAdapter] WebSocket 断开，准备重连...")
 
         adapter.统计数据['ws_reconnects'] += 1
-        logger.info(f"[HermesAdapter] 等待 {adapter._重连延迟:.1f}s 后重连...")
-        await asyncio.sleep(adapter._重连延迟)
-        adapter._重连延迟 = min(adapter._重连延迟 * 2, adapter._最大重连延迟)
+        logger.info(f"[HermesAdapter] 等待 {adapter.重连延迟:.1f}s 后重连...")
+        await asyncio.sleep(adapter.重连延迟)
+        adapter.重连延迟 = min(adapter.重连延迟 * 2, adapter.最大重连延迟)
 
 
 async def ws_send(adapter, 数据: dict):
     """发送 WebSocket 消息"""
-    if adapter._ws_连接 and adapter._ws_已连接:
+    if adapter.ws_连接 and adapter.ws_已连接:
         try:
-            await adapter._ws_连接.send(json.dumps(数据, ensure_ascii=False))
+            await adapter.ws_连接.send(json.dumps(数据, ensure_ascii=False))
         except Exception as e:
             logger.error(f"[HermesAdapter] WebSocket 发送失败: {e}")
-            adapter._ws_已连接 = False
+            adapter.ws_已连接 = False
 
 
 async def _send_connect(adapter):
@@ -107,12 +106,12 @@ async def _handle_api(adapter, 数据: dict):
     回声字段 = 数据.get('echo', '')
 
     async def send_fn(群号, 内容):
-        return await send_text(adapter._会话, adapter.onebot_api_地址, 群号, 内容)
+        return await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 内容)
 
     async def send_cq_fn(群号, 内容):
-        return await send_cq(adapter._会话, adapter.onebot_api_地址, 群号, 内容)
+        return await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, 内容)
 
-    结果 = await handle_api_request(数据, adapter._会话, adapter.onebot_api_地址, send_fn, send_cq_fn)
+    结果 = await handle_api_request(数据, adapter.会话, adapter.onebot_api_地址, send_fn, send_cq_fn)
 
     响应 = build_api_response(结果, 回声字段)
     if 响应:
@@ -126,7 +125,7 @@ async def _handle_send_message(adapter, 数据: dict):
     消息内容 = 数据.get('message', '')
 
     if 群号:
-        await send_text(adapter._会话, adapter.onebot_api_地址, int(群号), 消息内容)
+        await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容)
     elif 用户id:
         from .onebot_api import send_private
-        await send_private(adapter._会话, adapter.onebot_api_地址, int(用户id), 消息内容)
+        await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容)

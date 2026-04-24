@@ -83,24 +83,24 @@ class Hermes适配器(Star):
         self.指令黑名单 = 指令配置.get('command_blacklist', ['重启', '关机', '更新'])
 
         # ========== 内部状态 ==========
-        self._http_运行器 = None
-        self._http_站点 = None
-        self._会话 = None
-        self._处理器缓存: Dict[str, Dict] = {}
-        self._别名到指令: Dict[str, str] = {}
+        self.http_运行器 = None
+        self.http_站点 = None
+        self.会话 = None
+        self.处理器缓存: Dict[str, Dict] = {}
+        self.别名到指令: Dict[str, str] = {}
         self._所有指令集合: set = set()  # 所有指令名+别名的集合
 
         # WebSocket 相关
-        self._ws_连接 = None
+        self.ws_连接 = None
         self._ws_任务 = None
         self._ws_已连接 = False
         self._重连延迟 = 1.0
-        self._最大重连延迟 = 60.0
+        self.最大重连延迟 = 60.0
 
         # 存储每个群的最新 event 对象
-        self._群组事件: Dict[str, AiocqhttpMessageEvent] = {}
+        self.群组事件: Dict[str, AiocqhttpMessageEvent] = {}
         # 存储每个用户的私聊最新 event 对象
-        self._私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
+        self.私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
 
         self.统计数据 = {
             'messages_forwarded': 0,
@@ -134,21 +134,21 @@ class Hermes适配器(Star):
         logger.info("[HermesAdapter] ═══ 指令过滤 ═══")
         logger.info(f"[HermesAdapter]   白名单: {self.指令白名单 or '无限制'}")
         logger.info(f"[HermesAdapter]   黑名单: {self.指令黑名单}")
-        logger.debug("[HermesAdapter]   最后修改：2026-4-24 12:15")
+        logger.debug("[HermesAdapter]   最后修改：2026-4-25 4:17")
 
     # ========== 缓存管理 ==========
 
-    def _rebuild_cache(self):
+    def rebuild_cache(self):
         """重建指令处理器缓存"""
-        self._处理器缓存, self._别名到指令 = build_command_cache(self.context)
-        self._所有指令集合 = build_all_commands_set(self._处理器缓存, self._别名到指令)
+        self.处理器缓存, self.别名到指令 = build_command_cache(self.context)
+        self._所有指令集合 = build_all_commands_set(self.处理器缓存, self.别名到指令)
 
     # ========== 生命周期 ==========
 
     async def initialize(self):
         """异步初始化"""
-        self._会话 = aiohttp.ClientSession()
-        self._rebuild_cache()
+        self.会话 = aiohttp.ClientSession()
+        self.rebuild_cache()
 
         if self.启用_http_服务器:
             await start_http_server(self)
@@ -165,13 +165,13 @@ class Hermes适配器(Star):
             except asyncio.CancelledError:
                 pass
 
-        if self._ws_连接:
-            await self._ws_连接.close()
+        if self.ws_连接:
+            await self.ws_连接.close()
 
         await stop_http_server(self)
 
-        if self._会话:
-            await self._会话.close()
+        if self.会话:
+            await self.会话.close()
 
         logger.info("[HermesAdapter] 插件已停止")
 
@@ -180,16 +180,16 @@ class Hermes适配器(Star):
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
     async def on_message(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 event 并转发给 Hermes"""
+        if not event.get_messages():
+            return
         消息内容 = event.get_message_str()
         群号 = event.get_group_id()
         用户id = event.get_sender_id()
         用户名 = event.get_sender_name()
-        是否私聊 = not 群号
-
         if 群号:
-            self._群组事件[群号] = event
+            self.群组事件[群号] = event
         else:
-            self._私聊事件[用户id] = event
+            self.私聊事件[用户id] = event
 
         # 判断是否为框架指令：空格分割后第一个词在指令集合中则跳过
         if 消息内容:
@@ -199,12 +199,11 @@ class Hermes适配器(Star):
                 return
 
         应转发, 消息内容 = should_forward(
-            消息内容, 群号, 用户id, event,
+            event, 消息内容,
             self.转发所有消息, self.允许的群组, self.允许的用户,
             self.触发关键词, self.触发艾特机器人,
             self.approve_启用, self.approve_允许用户,
-            self.deny_启用, self.deny_允许用户,
-            是否私聊
+            self.deny_启用, self.deny_允许用户
         )
         if not 应转发:
             return
@@ -213,14 +212,13 @@ class Hermes适配器(Star):
             return
 
         onebot事件体 = await build_onebot_event(
-            event, 消息内容, 群号, 用户id, 用户名,
-            self.最大消息长度, self.已转发键, 是否私聊
+            event, 消息内容, self.最大消息长度, self.已转发键
         )
 
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1
-        来源 = "私聊" if 是否私聊 else "群聊"
+        来源 = "群聊" if 群号 else "私聊"
         logger.info(f"[HermesAdapter] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
 
     def _是否唤醒处理(self, event: AiocqhttpMessageEvent) -> bool:
@@ -260,9 +258,9 @@ class Hermes适配器(Star):
             'Hermes 适配器状态 (WebSocket 版本)',
             f'运行时间: {小时数}小时{分钟数}分钟',
             f'WebSocket: {ws状态}',
-            f'已缓存指令: {len(self._处理器缓存)}个',
-            f'已缓存群: {len(self._群组事件)}个',
-            f'已缓存私聊: {len(self._私聊事件)}个',
+            f'已缓存指令: {len(self.处理器缓存)}个',
+            f'已缓存群: {len(self.群组事件)}个',
+            f'已缓存私聊: {len(self.私聊事件)}个',
             f'转发消息: {self.统计数据["messages_forwarded"]}条',
             f'执行指令: {self.统计数据["commands_executed"]}次',
             f'错误次数: {self.统计数据["errors"]}次',
@@ -270,7 +268,7 @@ class Hermes适配器(Star):
             '',
             f'Hermes WebSocket: {self.hermes_ws_链接}',
             f'HTTP 服务器: http://localhost:{self.http_服务器_端口}',
-            f'已缓存群列表: {", ".join(self._群组事件.keys()) or "无"}',
+            f'已缓存群列表: {", ".join(self.群组事件.keys()) or "无"}',
         ]
         yield event.plain_result('\n'.join(输出行))
 
@@ -301,13 +299,13 @@ class Hermes适配器(Star):
             if command:
                 return await self._llm_execute_command(event, command, args, group_id)
             else:
-                return await self._llm_forward_task(event, task, group_id)
+                return await self._llm_forward_task(event, task)
 
         except Exception as e:
             logger.error(f"[HermesAdapter] LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
-    async def _llm_execute_command(self, event, command: str, args: str, group_id: str) -> str:
+    async def _llm_execute_command(self, event: AiocqhttpMessageEvent, command: str, args: str, group_id: str) -> str:
         """LLM 工具：执行具体指令"""
         logger.info(f"[HermesAdapter] LLM工具执行指令: {command} {args}")
 
@@ -315,12 +313,12 @@ class Hermes适配器(Star):
         if not 可执行:
             return f"指令执行被拒绝: {原因}"
 
-        if not self._处理器缓存:
-            self._rebuild_cache()
+        if not self.处理器缓存:
+            self.rebuild_cache()
 
-        处理器信息 = resolve_command(command, self._别名到指令, self._处理器缓存)
+        处理器信息 = resolve_command(command, self.别名到指令, self.处理器缓存)
         if not 处理器信息:
-            可用指令 = list(self._处理器缓存.keys())[:20]
+            可用指令 = list(self.处理器缓存.keys())[:20]
             return f"未找到指令: {command}。可用指令: {', '.join(可用指令)}"
 
         执行结果 = await execute_command(
@@ -338,20 +336,16 @@ class Hermes适配器(Star):
         else:
             return f"指令执行失败: {执行结果.get('error', '未知错误')}"
 
-    async def _llm_forward_task(self, event, task: str, group_id: str) -> str:
+    async def _llm_forward_task(self, event: AiocqhttpMessageEvent, task: str) -> str:
         """LLM 工具：转发任务给 Hermes"""
         logger.info(f"[HermesAdapter] LLM工具执行任务: {task}")
 
         if not self._ws_已连接:
             return "Hermes Agent 未连接，请稍后再试"
 
-        名字 = self.触发关键词[0] if self.触发关键词 else "纳西妲"
-        消息内容 = f"{名字}，{task}"
 
         onebot事件体 = await build_onebot_event(
-            event, 消息内容, group_id,
-            event.get_sender_id(), event.get_sender_name(),
-            self.最大消息长度, self.已转发键
+            event, event.get_message_str(), self.最大消息长度, self.已转发键
         )
 
         await ws_send(self, onebot事件体)
@@ -361,7 +355,7 @@ class Hermes适配器(Star):
         return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
 
     @filter.llm_tool("hermes_status")
-    async def hermes_status(self, _: AiocqhttpMessageEvent) -> str:
+    async def hermes_status(self, _) -> str:
         """
         查询 Hermes Agent 和适配器的运行状态。
 
@@ -377,9 +371,9 @@ class Hermes适配器(Star):
             "Hermes 适配器状态:",
             f"- WebSocket 连接: {ws状态}",
             f"- 运行时间: {小时数}小时{分钟数}分钟",
-            f"- 已缓存指令: {len(self._处理器缓存)}个",
-            f"- 已缓存群: {len(self._群组事件)}个",
-            f"- 已缓存私聊: {len(self._私聊事件)}个",
+            f"- 已缓存指令: {len(self.处理器缓存)}个",
+            f"- 已缓存群: {len(self.群组事件)}个",
+            f"- 已缓存私聊: {len(self.私聊事件)}个",
             f"- 已转发消息: {self.统计数据['messages_forwarded']}条",
             f"- 已执行指令: {self.统计数据['commands_executed']}次",
             f"- 错误次数: {self.统计数据['errors']}次"
@@ -396,10 +390,10 @@ class Hermes适配器(Star):
         Returns:
             str: 指令列表，按分类组织
         """
-        if not self._处理器缓存:
-            self._rebuild_cache()
+        if not self.处理器缓存:
+            self.rebuild_cache()
 
-        分类字典 = categorize_commands(self._处理器缓存, 分类过滤=category)
+        分类字典 = categorize_commands(self.处理器缓存, 分类过滤=category)
 
         输出行 = []
         for 分类, items in sorted(分类字典.items()):
@@ -411,4 +405,4 @@ class Hermes适配器(Star):
         if not 输出行:
             return f"没有找到分类为 '{category}' 的指令" if category else "没有找到可用指令"
 
-        return f"可用指令列表 (共{len(self._处理器缓存)}个):" + "\n".join(输出行)
+        return f"可用指令列表 (共{len(self.处理器缓存)}个):" + "\n".join(输出行)
