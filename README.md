@@ -310,7 +310,6 @@ Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台
    ```
 2. 按照其 README 中的依赖安装说明，配置必要的 Python 环境。
 3. 阅读该仓库的配置文档，正确填写配置文件（通常是一个 `config.yaml` 或 `config.json`）。你需要重点关注以下内容：
-   - **Hermes Agent 的连接地址**（本地 Hermes 实例的 API 地址）
    - **OneBot 反向 WebSocket 监听端口** （本插件作为 **OneBot 反向 WebSocket适配器**）
    - **模型/LLM 配置**：将 Hermes 使用的底层大模型配置正确（API key、模型名称等）
 
