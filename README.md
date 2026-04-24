@@ -333,4 +333,6 @@ systemctl restart astrbot
 *最后修改：2026-04-24*  
 *作者：懒大猫*  
 
+## 许可证
 
+MIT
