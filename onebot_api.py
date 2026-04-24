@@ -3,7 +3,6 @@ OneBot API 模块
 
 负责通过 OneBot HTTP API 发送消息，以及处理 Hermes 发来的 API 请求。
 """
-import json
 import aiohttp
 from typing import Dict, Any, Optional
 from astrbot.api.all import logger

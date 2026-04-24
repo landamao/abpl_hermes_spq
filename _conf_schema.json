@@ -1,105 +1,180 @@
 {
-  "onebot_api_url": {
-    "description": "OneBot HTTP API 地址",
-    "type": "string",
-    "hint": "NapCat 的 HTTP API 地址，用于转发消息",
-    "default": "http://127.0.0.1:5700"
-  },
-  "hermes_ws_url": {
-    "description": "Hermes WebSocket 地址",
-    "type": "string",
-    "hint": "连接到 Hermes 的 WebSocket 地址",
-    "default": "ws://127.0.0.1:6701"
-  },
-  "hermes_access_token": {
-    "description": "Hermes 访问令牌",
-    "type": "string",
-    "hint": "连接到 Hermes 的访问令牌，为空表示不需要认证",
-    "default": ""
-  },
-  "enable_http_server": {
-    "description": "启用 HTTP 服务器",
-    "type": "bool",
-    "hint": "是否启动 HTTP 服务器接收 Hermes 的指令请求",
-    "default": true
-  },
-  "http_server_port": {
-    "description": "HTTP 服务器端口",
-    "type": "int",
-    "hint": "接收 Hermes 指令请求的端口",
-    "default": 8567
-  },
-  "http_server_token": {
-    "description": "HTTP 服务器认证 Token",
-    "type": "string",
-    "hint": "验证 Hermes 请求的 Token，为空表示不验证",
-    "default": ""
-  },
-  "trigger_keywords": {
-    "description": "触发转发的关键词",
-    "type": "list",
-    "hint": "消息中包含这些关键词时转发给 Hermes",
-    "default": ["纳西妲", "hermes", "Hermes"]
-  },
-  "trigger_at_bot": {
-    "description": "@机器人时触发",
-    "type": "bool",
-    "hint": "当消息 @机器人 时是否转发给 Hermes",
-    "default": true
-  },
-  "allowed_groups": {
-    "description": "允许的群白名单",
-    "type": "list",
-    "hint": "只转发这些群的消息，为空表示所有群",
-    "default": []
-  },
-  "allowed_users": {
-    "description": "允许的用户白名单",
-    "type": "list",
-    "hint": "只转发这些用户的消息，为空表示所有用户",
-    "default": []
-  },
-  "forward_all_messages": {
-    "description": "转发所有消息",
-    "type": "bool",
-    "hint": "是否转发所有消息（慎用，会消耗大量 token）",
-    "default": false
-  },
-  "command_whitelist": {
-    "description": "指令白名单",
-    "type": "list",
-    "hint": "允许 Hermes 执行的指令，为空表示所有指令",
-    "default": []
-  },
-  "command_blacklist": {
-    "description": "指令黑名单",
-    "type": "list",
-    "hint": "禁止 Hermes 执行的指令",
-    "default": ["重启", "关机", "更新"]
-  },
-  "max_message_length": {
-    "description": "最大消息长度",
-    "type": "int",
-    "hint": "超过此长度的消息将被截断",
-    "default": 2000
-  },
-  "approve_deny_enabled": {
-    "description": "启用 /approve 和 /deny",
-    "type": "bool",
-    "hint": "是否启用 /approve 和 /deny 这两个 Hermes 特殊指令",
-    "default": true
-  },
-  "approve_deny_users": {
-    "description": "/approve /deny 允许的用户",
-    "type": "list",
-    "hint": "允许使用 /approve 和 /deny 的用户 QQ 号",
-    "default": []
-  },
-  "llm_hermes_conflict_mode": {
-    "description": "消息同时触发 LLM 唤醒和 Hermes 转发时的处理方式",
-    "type": "string",
-    "hint": "选择冲突时的行为：llm_only - 仅使用原始 LLM，不推送给 Hermes；hermes_only - 拦截 LLM 唤醒，仅推送 Hermes 处理；both - 同时触发 LLM 和 Hermes，建议选择前两项，同时唤醒可能产生大量消息回复导致混乱聊天",
-    "options": ["llm_only", "hermes_only", "both"],
-    "default": "hermes_only"
-  }
+    "connection": {
+        "description": "连接配置",
+        "type": "object",
+        "hint": "Hermes Agent 和 OneBot 的连接设置",
+        "items": {
+            "hermes_ws_url": {
+                "type": "string",
+                "description": "Hermes WebSocket 地址",
+                "default": "ws://127.0.0.1:6701",
+                "hint": "Hermes Agent 的 WebSocket 服务器地址"
+            },
+            "hermes_access_token": {
+                "type": "string",
+                "description": "Hermes 访问令牌",
+                "default": "",
+                "hint": "连接 Hermes 时的认证令牌，留空表示无需认证"
+            },
+            "onebot_api_url": {
+                "type": "string",
+                "description": "OneBot API 地址",
+                "default": "http://127.0.0.1:5700",
+                "hint": "NapCat 等 OneBot 实现的 HTTP API 地址"
+            }
+        }
+    },
+    "http_server": {
+        "description": "HTTP API 服务器配置",
+        "type": "object",
+        "hint": "用于让 Hermes 调用 AstrBot 指令的 HTTP 服务器",
+        "items": {
+            "enable_http_server": {
+                "type": "bool",
+                "description": "启用 HTTP 服务器",
+                "default": true,
+                "hint": "是否启动 HTTP API 服务器供 Hermes 调用"
+            },
+            "http_server_port": {
+                "type": "int",
+                "description": "HTTP 服务器端口",
+                "default": 8567,
+                "hint": "HTTP API 服务器监听的端口号"
+            },
+            "http_server_token": {
+                "type": "string",
+                "description": "HTTP 服务器访问令牌",
+                "default": "",
+                "hint": "访问 HTTP API 时需要的认证令牌，留空表示无需认证"
+            }
+        }
+    },
+    "message_filter": {
+        "description": "消息过滤配置",
+        "type": "object",
+        "hint": "控制哪些消息会被转发给 Hermes",
+        "items": {
+            "trigger_keywords": {
+                "type": "list",
+                "description": "触发关键词",
+                "default": ["纳西妲", "hermes", "Hermes"],
+                "hint": "消息中包含这些关键词时会转发给 Hermes",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "trigger_at_bot": {
+                "type": "bool",
+                "description": "@机器人时触发",
+                "default": true,
+                "hint": "是否在 @机器人 时转发消息给 Hermes"
+            },
+            "allowed_groups": {
+                "type": "list",
+                "description": "允许的群组",
+                "default": [],
+                "hint": "留空表示所有群组都可以触发。填写群号列表，只有这些群的消息会被转发。",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "allowed_users": {
+                "type": "list",
+                "description": "允许的用户",
+                "default": [],
+                "hint": "留空表示所有用户都可以触发。填写用户ID列表，只有这些用户的消息会被转发。",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "forward_all_messages": {
+                "type": "bool",
+                "description": "转发所有消息",
+                "default": false,
+                "hint": "是否转发所有消息给 Hermes（慎用，会产生大量请求）"
+            },
+            "max_message_length": {
+                "type": "int",
+                "description": "最大消息长度",
+                "default": 2000,
+                "hint": "超过此长度的消息会被截断"
+            }
+        }
+    },
+    "conflict_mode": {
+        "description": "冲突处理策略",
+        "type": "object",
+        "hint": "当 LLM 和 Hermes 同时被唤醒时的处理方式",
+        "items": {
+            "llm_hermes_conflict_mode": {
+                "type": "string",
+                "description": "冲突处理模式",
+                "default": "hermes_only",
+                "options": ["hermes_only", "both", "llm_only"],
+                "hint": "hermes_only=只用 Hermes 处理；both=同时唤醒，都处理；llm_only=优先用本地 LLM"
+            }
+        }
+    },
+    "approve_deny": {
+        "description": "授权命令配置",
+        "type": "object",
+        "hint": "配置 /approve 和 /deny 命令的权限控制",
+        "items": {
+            "approve_enabled": {
+                "type": "bool",
+                "description": "启用 /approve 命令",
+                "default": true,
+                "hint": "是否允许使用 /approve 命令来授权 Hermes 指令执行"
+            },
+            "approve_users": {
+                "type": "list",
+                "description": "允许使用 /approve 的用户",
+                "default": [],
+                "hint": "留空表示所有用户都可以使用。填写用户ID列表，只有列表中的用户才能使用 /approve 命令。",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "deny_enabled": {
+                "type": "bool",
+                "description": "启用 /deny 命令",
+                "default": true,
+                "hint": "是否允许使用 /deny 命令来拒绝 Hermes 指令执行"
+            },
+            "deny_users": {
+                "type": "list",
+                "description": "允许使用 /deny 的用户",
+                "default": [],
+                "hint": "留空表示所有用户都可以使用。填写用户ID列表，只有列表中的用户才能使用 /deny 命令。",
+                "items": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "command_filter": {
+        "description": "指令过滤配置",
+        "type": "object",
+        "hint": "控制哪些 AstrBot 指令可以通过 HTTP API 执行",
+        "items": {
+            "command_whitelist": {
+                "type": "list",
+                "description": "指令白名单",
+                "default": [],
+                "hint": "留空表示不限制。填写指令名称列表，只有这些指令可以通过 API 执行。",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "command_blacklist": {
+                "type": "list",
+                "description": "指令黑名单",
+                "default": ["重启", "关机", "更新"],
+                "hint": "这些指令不能通过 API 执行",
+                "items": {
+                    "type": "string"
+                }
+            }
+        }
+    }
 }

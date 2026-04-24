@@ -6,10 +6,10 @@ HTTP 服务器模块
 import json
 import time
 import copy
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from aiohttp import web
 from astrbot.api.all import (
-    logger, Plain, Image, At, Json,
+    logger, Plain, Image, Json,
     AstrBotMessage, MessageMember, MessageType
 )
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
@@ -168,7 +168,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
         else:
             消息字符串 = 指令名称
 
-        已存事件 = adapter._群组事件.get(群号) if 群号 else None
+        已存事件 = adapter._群组事件.get(群号) if 群号 else adapter._私聊事件.get(用户id)
 
         if 已存事件:
             事件对象 = copy.copy(已存事件)

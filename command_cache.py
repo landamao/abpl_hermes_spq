@@ -3,7 +3,6 @@
 
 负责构建、查找、验证 AstrBot 指令处理器缓存。
 """
-import copy
 from typing import Dict, Optional, Tuple
 from astrbot.api.all import logger
 from astrbot.core.star.filter.command import CommandFilter

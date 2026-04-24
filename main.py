@@ -60,9 +60,13 @@ class Hermes适配器(Star):
         self.最大消息长度 = config.get('max_message_length', 2000)
         self.同时唤醒处理方式 = config.get('llm_hermes_conflict_mode', 'hermes_only')
 
-        # /approve 和 /deny 授权配置
-        self.approve_deny_启用 = config.get('approve_deny_enabled', True)
-        self.approve_deny_允许用户 = 清理列表(config.get('approve_deny_users', []))
+        # /approve 授权配置
+        self.approve_启用 = config.get('approve_enabled', True)
+        self.approve_允许用户 = 清理列表(config.get('approve_users', []))
+
+        # /deny 授权配置
+        self.deny_启用 = config.get('deny_enabled', True)
+        self.deny_允许用户 = 清理列表(config.get('deny_users', []))
 
         # 指令执行配置
         self.指令白名单 = 清理列表(config.get('command_whitelist', []))
@@ -85,6 +89,8 @@ class Hermes适配器(Star):
 
         # 存储每个群的最新 event 对象
         self._群组事件: Dict[str, AiocqhttpMessageEvent] = {}
+        # 存储每个用户的私聊最新 event 对象
+        self._私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
 
         self.统计数据 = {
             'messages_forwarded': 0,
@@ -142,16 +148,19 @@ class Hermes适配器(Star):
 
     # ========== 消息监听和转发 ==========
 
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE, priority=-1)
-    async def on_group_message(self, event: AiocqhttpMessageEvent):
-        """监听群消息，存储 event 并转发给 Hermes"""
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
+    async def on_message(self, event: AiocqhttpMessageEvent):
+        """监听所有消息（群聊+私聊），存储 event 并转发给 Hermes"""
         消息内容 = event.get_message_str()
         群号 = event.get_group_id()
         用户id = event.get_sender_id()
         用户名 = event.get_sender_name()
+        是否私聊 = not 群号
 
         if 群号:
             self._群组事件[群号] = event
+        else:
+            self._私聊事件[用户id] = event
 
         # 判断是否为框架指令：空格分割后第一个词在指令集合中则跳过
         if 消息内容:
@@ -164,7 +173,9 @@ class Hermes适配器(Star):
             消息内容, 群号, 用户id, event,
             self.转发所有消息, self.允许的群组, self.允许的用户,
             self.触发关键词, self.触发艾特机器人,
-            self.approve_deny_启用, self.approve_deny_允许用户
+            self.approve_启用, self.approve_允许用户,
+            self.deny_启用, self.deny_允许用户,
+            是否私聊
         )
         if not 应转发:
             return
@@ -174,13 +185,14 @@ class Hermes适配器(Star):
 
         onebot事件体 = await build_onebot_event(
             event, 消息内容, 群号, 用户id, 用户名,
-            self.最大消息长度, self.已转发键
+            self.最大消息长度, self.已转发键, 是否私聊
         )
 
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1
-        logger.info(f"[HermesAdapter] 已转发[{用户名}] 的消息到 Hermes：{消息内容[:50]}")
+        来源 = "私聊" if 是否私聊 else "群聊"
+        logger.info(f"[HermesAdapter] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
 
     def _是否唤醒处理(self, event: AiocqhttpMessageEvent) -> bool:
         """判断 LLM 和 Hermes 同时唤醒时的处理方式"""
@@ -221,6 +233,7 @@ class Hermes适配器(Star):
             f'WebSocket: {ws状态}',
             f'已缓存指令: {len(self._处理器缓存)}个',
             f'已缓存群: {len(self._群组事件)}个',
+            f'已缓存私聊: {len(self._私聊事件)}个',
             f'转发消息: {self.统计数据["messages_forwarded"]}条',
             f'执行指令: {self.统计数据["commands_executed"]}次',
             f'错误次数: {self.统计数据["errors"]}次',
@@ -337,6 +350,7 @@ class Hermes适配器(Star):
             f"- 运行时间: {小时数}小时{分钟数}分钟",
             f"- 已缓存指令: {len(self._处理器缓存)}个",
             f"- 已缓存群: {len(self._群组事件)}个",
+            f"- 已缓存私聊: {len(self._私聊事件)}个",
             f"- 已转发消息: {self.统计数据['messages_forwarded']}条",
             f"- 已执行指令: {self.统计数据['commands_executed']}次",
             f"- 错误次数: {self.统计数据['errors']}次"
