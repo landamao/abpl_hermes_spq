@@ -17,12 +17,13 @@ async def send_text(session: aiohttp.ClientSession, onebot_url: str, 群号: int
         "message": 消息内容
     }
     try:
+        logger.debug(f"[HermesAdapter] OneBot 发送文本请求: {payload}")
         async with session.post(url, json=payload) as resp:
             result = await resp.json()
-            logger.info(f"[HermesAdapter] OneBot 发送结果: {result}")
+            logger.debug(f"[HermesAdapter] OneBot 发送文本结果: {result}")
             return result
     except Exception as e:
-        logger.error(f"[HermesAdapter] OneBot 发送失败: {e}")
+        logger.error(f"[HermesAdapter] OneBot 发送失败: {e}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -35,12 +36,13 @@ async def send_cq(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 
         "message": 消息内容
     }
     try:
+        logger.debug(f"[HermesAdapter] OneBot 发送CQ请求: {payload}")
         async with session.post(url, json=payload) as resp:
             result = await resp.json()
-            logger.info(f"[HermesAdapter] OneBot CQ 发送结果: {result}")
+            logger.debug(f"[HermesAdapter] OneBot 发送CQ结果: {result}")
             return result
     except Exception as e:
-        logger.error(f"[HermesAdapter] OneBot CQ 发送失败: {e}")
+        logger.error(f"[HermesAdapter] OneBot CQ 发送失败: {e}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -56,7 +58,43 @@ async def send_private(session: aiohttp.ClientSession, onebot_url: str, 用户id
         async with session.post(url, json=payload) as resp:
             return await resp.json()
     except Exception as e:
-        logger.error(f"[HermesAdapter] 发送私聊消息失败: {e}")
+        logger.error(f"[HermesAdapter] 发送私聊消息失败: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+async def upload_group_file(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 文件路径: str, 文件名: str = "") -> dict:
+    """通过 OneBot API 上传文件到群"""
+    url = f"{onebot_url}/upload_group_file"
+    payload = {
+        "group_id": 群号,
+        "file": 文件路径,
+        "name": 文件名 or 文件路径.split("/")[-1].split("\\")[-1]
+    }
+    try:
+        async with session.post(url, json=payload) as resp:
+            result = await resp.json()
+            logger.info(f"[HermesAdapter] OneBot 群文件上传结果: {result}")
+            return result
+    except Exception as e:
+        logger.error(f"[HermesAdapter] 群文件上传失败: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, 用户id, 文件路径: str, 文件名: str = "") -> dict:
+    """通过 OneBot API 上传文件到私聊"""
+    url = f"{onebot_url}/upload_private_file"
+    payload = {
+        "user_id": 用户id,
+        "file": 文件路径,
+        "name": 文件名 or 文件路径.split("/")[-1].split("\\")[-1]
+    }
+    try:
+        async with session.post(url, json=payload) as resp:
+            result = await resp.json()
+            logger.info(f"[HermesAdapter] OneBot 私聊文件上传结果: {result}")
+            return result
+    except Exception as e:
+        logger.error(f"[HermesAdapter] 私聊文件上传失败: {e}", exc_info=True)
         return {"error": str(e)}
 
 
@@ -155,6 +193,27 @@ async def handle_api_request(
             params = {"user_id":参数.get('user_id')}
             async with session.get(url, params=params) as resp:
                 return await resp.json()
+
+        elif 动作 == 'upload_group_file':
+            url = f"{onebot_url}/upload_group_file"
+            payload = {
+                "group_id": 参数.get('group_id'),
+                "file": 参数.get('file', ''),
+                "name": 参数.get('name', '')
+            }
+            async with session.post(url, json=payload) as resp:
+                return await resp.json()
+
+        elif 动作 == 'upload_private_file':
+            url = f"{onebot_url}/upload_private_file"
+            payload = {
+                "user_id": 参数.get('user_id'),
+                "file": 参数.get('file', ''),
+                "name": 参数.get('name', '')
+            }
+            async with session.post(url, json=payload) as resp:
+                return await resp.json()
+
         else:
             logger.warning(f"[HermesAdapter] 未支持的 API 操作: {动作}")
             logger.debug(f"原始数据：{数据}")

@@ -48,7 +48,7 @@ async def ws_loop(adapter):
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}")
+            logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}", exc_info=True)
 
         if adapter.ws_已连接:
             adapter.ws_已连接 = False
@@ -66,9 +66,8 @@ async def ws_send(adapter, 数据: dict):
         try:
             await adapter.ws_连接.send(json.dumps(数据, ensure_ascii=False))
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 发送失败: \n{e}", exc_info=True)
-            logger.error("")
-            logger.debug(f"发送失败，原始数据：\n{数据}")
+            logger.error(f"[HermesAdapter] WebSocket 发送失败: {e}", exc_info=True)
+            logger.debug(f"[HermesAdapter] 发送失败，原始数据: {数据}")
             adapter.ws_已连接 = False
 
 
@@ -98,7 +97,7 @@ async def _handle_message(adapter, 原始消息: str):
             await _handle_api(adapter, 数据)
 
     except json.JSONDecodeError:
-        logger.error(f"[HermesAdapter] 无效的 JSON 消息: {原始消息[:100]}")
+        logger.error(f"[HermesAdapter] 无效的 JSON 消息: {原始消息[:200]}", exc_info=True)
     except Exception as e:
         logger.error(f"[HermesAdapter] 处理消息失败: {e}", exc_info=True)
 
@@ -115,6 +114,13 @@ async def _handle_api(adapter, 数据: dict):
 
     结果 = await handle_api_request(数据, adapter.会话, adapter.onebot_api_地址, send_fn, send_cq_fn)
 
+    # 记录发送的消息 ID
+    if isinstance(结果, dict):
+        message_id = 结果.get("data", {}).get("message_id")
+        if message_id:
+            adapter.记录hermes消息id(message_id)
+            logger.debug(f"[HermesAdapter] API 请求发送消息记录 ID: {message_id}")
+
     响应 = build_api_response(结果, 回声字段)
     if 响应:
         await ws_send(adapter, 响应)
@@ -127,7 +133,11 @@ async def _handle_send_message(adapter, 数据: dict):
     消息内容 = 数据.get('message', '')
 
     if 群号:
-        await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容)
+        result = await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容)
+        message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
+        adapter.记录hermes消息id(message_id)
     elif 用户id:
         from .onebot_api import send_private
-        await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容)
+        result = await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容)
+        message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
+        adapter.记录hermes消息id(message_id)

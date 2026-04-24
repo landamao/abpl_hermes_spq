@@ -21,6 +21,7 @@ def should_forward(
     approve_允许用户: list,
     deny_启用: bool,
     deny_允许用户: list,
+    引用hermes消息: bool = False,
 ) -> Tuple[bool, str]:
     """
     判断是否需要转发消息给 Hermes。
@@ -30,6 +31,12 @@ def should_forward(
     """
     群号 = event.get_group_id()
     用户id = event.get_sender_id()
+
+    # 0. 引用 Hermes 消息直接唤醒
+    if 引用hermes消息:
+        logger.debug(f"[HermesAdapter] 转发消息（原因：引用 Hermes 消息），内容：{消息内容[:30]}...")
+        return True, 消息内容
+
     # 1. 转发所有消息
     if 转发所有消息:
         logger.debug(f"[HermesAdapter] 转发消息（原因：转发所有消息），内容：{消息内容[:30]}...")

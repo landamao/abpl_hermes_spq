@@ -18,7 +18,7 @@ import aiohttp
 from typing import Dict
 from astrbot.api.event import filter
 from astrbot.api.all import (
-    Star, Context, AstrBotConfig, logger
+    Star, Context, AstrBotConfig, logger, Reply
 )
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
@@ -66,6 +66,7 @@ class Hermes适配器(Star):
         self.允许的用户 = 清理列表(过滤配置.get('allowed_users', []))
         self.转发所有消息 = 过滤配置.get('forward_all_messages', False)
         self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
+        self.引用唤醒 = 过滤配置.get('reply_to_hermes_trigger', True)
 
         # 冲突处理方式
         self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
@@ -101,6 +102,9 @@ class Hermes适配器(Star):
         self.群组事件: Dict[str, AiocqhttpMessageEvent] = {}
         # 存储每个用户的私聊最新 event 对象
         self.私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
+        # 记录 Hermes 发送的消息 ID（用于引用唤醒）
+        self.hermes_消息id集合: set = set()
+        self.hermes_消息id_最大数量 = 1000
 
         self.统计数据 = {
             'messages_forwarded': 0,
@@ -126,6 +130,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   允许的用户: {self.允许的用户 or '全部'}")
         logger.info(f"[HermesAdapter]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
         logger.info(f"[HermesAdapter]   最大消息长度: {self.最大消息长度}")
+        logger.info(f"[HermesAdapter]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
         logger.info("[HermesAdapter] ═══ 冲突处理 ═══")
         logger.info(f"[HermesAdapter]   模式: {self.同时唤醒处理方式}")
         logger.info("[HermesAdapter] ═══ 授权命令 ═══")
@@ -143,12 +148,46 @@ class Hermes适配器(Star):
         self.处理器缓存, self.别名到指令 = build_command_cache(self.context)
         self._所有指令集合 = build_all_commands_set(self.处理器缓存, self.别名到指令)
 
+    def 记录hermes消息id(self, message_id: str):
+        """记录 Hermes 发送的消息 ID"""
+        if not message_id:
+            return
+        self.hermes_消息id集合.add(str(message_id))
+        # 超出上限时清理最早的（简单实现：直接清一半）
+        if len(self.hermes_消息id集合) > self.hermes_消息id_最大数量:
+            保留数量 = self.hermes_消息id_最大数量 // 2
+            self.hermes_消息id集合 = set(list(self.hermes_消息id集合)[-保留数量:])
+            logger.debug(f"[HermesAdapter] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
+
     # ========== 生命周期 ==========
 
     async def initialize(self):
         """异步初始化"""
+        import os
+        import glob
+        
         self.会话 = aiohttp.ClientSession()
         self.rebuild_cache()
+
+        # 打印插件目录下所有 py/pyc 文件的最后修改日期
+        插件目录 = os.path.dirname(__file__)
+        py文件 = glob.glob(os.path.join(插件目录, "*.py"))
+        pyc文件 = glob.glob(os.path.join(插件目录, "__pycache__", "*.pyc"))
+        所有文件 = py文件 + pyc文件
+        
+        # 计算最长文件名长度用于对齐
+        最长文件名 = max(len(os.path.basename(f)) for f in 所有文件) if 所有文件 else 0
+        
+        logger.debug("[HermesAdapter] ═══ 文件修改时间 ═══")
+        for 文件路径 in sorted(所有文件):
+            文件名 = os.path.basename(文件路径)
+            修改时间 = os.path.getmtime(文件路径)
+            修改时间_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(修改时间))
+            logger.debug(f"[HermesAdapter]   {文件名:<{最长文件名}}  {修改时间_str}")
+        
+        当前时间 = time.strftime("%Y-%m-%d %H:%M:%S")
+        logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名-1}}{当前时间}") #中文特殊对齐
+        logger.debug("[HermesAdapter] ═══════════════════════")
 
         if self.启用_http_服务器:
             await start_http_server(self)
@@ -198,12 +237,27 @@ class Hermes适配器(Star):
                 logger.debug(f"[HermesAdapter] 跳过框架指令: {第一个词}")
                 return
 
+        # 判断是否引用了 Hermes 发送的消息
+        引用hermes消息 = False
+        if self.引用唤醒:
+            消息链 = event.get_messages()
+            logger.debug(f"[HermesAdapter] 引用唤醒检查: 消息链长度={len(消息链) if 消息链 else 0}")
+            if 消息链:
+                logger.debug(f"[HermesAdapter] 消息链[0]类型={type(消息链[0]).__name__}, isinstance Reply={isinstance(消息链[0], Reply)}")
+            if 消息链 and isinstance(消息链[0], Reply):
+                引用的消息id = str(消息链[0].id)
+                logger.debug(f"[HermesAdapter] 引用消息ID={引用的消息id}, hermes消息ID集合={self.hermes_消息id集合}")
+                if 引用的消息id in self.hermes_消息id集合:
+                    引用hermes消息 = True
+                    logger.info(f"[HermesAdapter] 检测到引用 Hermes 消息: {引用的消息id}，直接唤醒")
+
         应转发, 消息内容 = should_forward(
             event, 消息内容,
             self.转发所有消息, self.允许的群组, self.允许的用户,
             self.触发关键词, self.触发艾特机器人,
             self.approve_启用, self.approve_允许用户,
-            self.deny_启用, self.deny_允许用户
+            self.deny_启用, self.deny_允许用户,
+            引用hermes消息
         )
         if not 应转发:
             return

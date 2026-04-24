@@ -193,8 +193,24 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
 
         try:
             结果数量 = 0
-            async for 执行结果 in 处理器.handler(事件对象):
-                结果数量 += 1
+            handler_result = 处理器.handler(事件对象)
+            
+            # 判断是异步生成器还是协程
+            if hasattr(handler_result, '__aiter__'):
+                # 异步生成器：用 async for 遍历
+                async for 执行结果 in handler_result:
+                    结果数量 += 1
+                    if 执行结果 is not None:
+                        if 群号:
+                            try:
+                                await _send_result_to_group(adapter, int(群号), 执行结果, 已发消息)
+                            except Exception as send_err:
+                                logger.error(f"[HermesAdapter] OneBot 发送失败: {send_err}", exc_info=True)
+                        _collect_result(执行结果, 结果文本列表, 结果图片列表)
+            else:
+                # 协程：用 await 调用
+                执行结果 = await handler_result
+                结果数量 = 1
                 if 执行结果 is not None:
                     if 群号:
                         try:
@@ -202,6 +218,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
                         except Exception as send_err:
                             logger.error(f"[HermesAdapter] OneBot 发送失败: {send_err}", exc_info=True)
                     _collect_result(执行结果, 结果文本列表, 结果图片列表)
+            
             logger.info(f"[HermesAdapter] 执行完成，共 {结果数量} 个结果")
         except TypeError as 类型错误:
             logger.warning(f"[HermesAdapter] 异步生成器失败，尝试同步调用: {类型错误}")
@@ -263,16 +280,25 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
             json数据 = 组件.data if hasattr(组件, 'data') else {}
             if json数据:
                 onebot消息内容 = [{"type": "json", "data": {"data": json.dumps(json数据)}}]
-                已发消息.append(await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容))
-                logger.info("[HermesAdapter] 已通过 OneBot 发送 JSON 消息")
+                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容)
+                已发消息.append(result)
+                message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
+                adapter.记录hermes消息id(message_id)
+                logger.debug(f"[HermesAdapter] 已通过 OneBot 发送 JSON, message_id={message_id}")
         elif hasattr(组件, 'text') and 组件.text:
-            已发消息.append(await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text))
-            logger.info(f"[HermesAdapter] 已通过 OneBot 发送文本: {组件.text[:50]}...")
+            result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text)
+            已发消息.append(result)
+            message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
+            adapter.记录hermes消息id(message_id)
+            logger.debug(f"[HermesAdapter] 已通过 OneBot 发送文本, message_id={message_id}")
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
                 onebot消息内容 = [{"type": "image", "data": {"file": 组件.url}}]
-                已发消息.append(await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容))
-                logger.info("[HermesAdapter] 已通过 OneBot 发送图片")
+                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容)
+                已发消息.append(result)
+                message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
+                adapter.记录hermes消息id(message_id)
+                logger.debug(f"[HermesAdapter] 已通过 OneBot 发送图片, message_id={message_id}")
 
 
 def _collect_result(执行结果, 文本列表: list, 图片列表: list):
