@@ -328,11 +328,11 @@ hermes gateway restart   # 或根据其文档使用特定命令
 3. 注意连接token配置
 
 ### 第五步：配置本插件的连接信息
-打开 AstrBot WebUI，找到 “Hermes适配器” 插件配置页面，或直接编辑 `data/plugins/Hermes适配器/_conf_schema.json` 中的默认值：
+打开 AstrBot WebUI，找到 “Hermes适配器” 插件配置页面
 
-- **`hermes_ws_url`**：填写 `ws://127.0.0.1:6701`（与第二步中 Hermes OneBot 适配器的 WebSocket 端口一致）
-- **`onebot_api_url`**：填写 NapCat 的 HTTP API 地址，例如 `http://127.0.0.1:5700`
-- **`http_server_port`**：保持 `8567`（与 NapCat 中配置的 HTTP 服务器端口对应）
+- **`Hermes WebSocket 地址`**：填写 `ws://127.0.0.1:6701`（与第二步中 Hermes OneBot 适配器的 WebSocket 端口一致）
+- **`OneBot API 地址`**：填写 NapCat 的 HTTP API 地址，例如 `http://127.0.0.1:5700`
+- **`HTTP 服务器端口`**：供Hermes使用，你可以教Hermes使用
 - 根据需求设置消息过滤规则（关键词、白名单等）
 
 ### 第六步：启动并验证连接
