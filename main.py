@@ -53,6 +53,7 @@ class Hermes适配器(Star):
 
         # OneBot API 地址
         self.onebot_api_地址 = 连接配置.get('onebot_api_url', 'http://127.0.0.1:5700')
+        self.onebot_api_token = 连接配置.get('onebot_api_token', '')
 
         # HTTP API 服务器
         self.启用_http_服务器 = http配置.get('enable_http_server', True)
@@ -119,6 +120,7 @@ class Hermes适配器(Star):
         logger.info("[HermesAdapter] ═══ 连接配置 ═══")
         logger.info(f"[HermesAdapter]   Hermes WebSocket: {self.hermes_ws_链接}")
         logger.info(f"[HermesAdapter]   OneBot API: {self.onebot_api_地址}")
+        logger.info(f"[HermesAdapter]   OneBot API 令牌: {self.onebot_api_token}")
         logger.info("[HermesAdapter] ═══ HTTP 服务器 ═══")
         logger.info(f"[HermesAdapter]   启用: {'是' if self.启用_http_服务器 else '否'}")
         logger.info(f"[HermesAdapter]   端口: {self.http_服务器_端口}")
@@ -139,7 +141,7 @@ class Hermes适配器(Star):
         logger.info("[HermesAdapter] ═══ 指令过滤 ═══")
         logger.info(f"[HermesAdapter]   白名单: {self.指令白名单 or '无限制'}")
         logger.info(f"[HermesAdapter]   黑名单: {self.指令黑名单}")
-        logger.debug("[HermesAdapter]   最后修改：2026-4-25 5:13")
+        logger.debug("[HermesAdapter]   最后修改：2026-4-25 9:00")
 
     # ========== 缓存管理 ==========
 
@@ -186,7 +188,7 @@ class Hermes适配器(Star):
             logger.debug(f"[HermesAdapter]   {文件名:<{最长文件名}}  {修改时间_str}")
         
         当前时间 = time.strftime("%Y-%m-%d %H:%M:%S")
-        logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名-1}}{当前时间}") #中文特殊对齐
+        logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名}}  {当前时间}")
         logger.debug("[HermesAdapter] ═══════════════════════")
 
         if self.启用_http_服务器:

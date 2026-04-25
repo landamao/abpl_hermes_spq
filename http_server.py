@@ -280,13 +280,13 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
             json数据 = 组件.data if hasattr(组件, 'data') else {}
             if json数据:
                 onebot消息内容 = [{"type": "json", "data": {"data": json.dumps(json数据)}}]
-                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容)
+                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容, adapter.onebot_api_token)
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)
                 logger.debug(f"[HermesAdapter] 已通过 OneBot 发送 JSON, message_id={message_id}")
         elif hasattr(组件, 'text') and 组件.text:
-            result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text)
+            result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text, adapter.onebot_api_token)
             已发消息.append(result)
             message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
             adapter.记录hermes消息id(message_id)
@@ -294,7 +294,7 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
                 onebot消息内容 = [{"type": "image", "data": {"file": 组件.url}}]
-                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容)
+                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容, adapter.onebot_api_token)
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)

@@ -21,6 +21,12 @@
                 "description": "OneBot API 地址",
                 "default": "http://127.0.0.1:5700",
                 "hint": "NapCat 等 OneBot 实现的 HTTP API 地址"
+            },
+            "onebot_api_token": {
+                "type": "string",
+                "description": "OneBot API 访问令牌",
+                "default": "",
+                "hint": "NapCat 的 access_token，留空表示无需认证"
             }
         }
     },

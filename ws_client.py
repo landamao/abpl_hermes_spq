@@ -107,12 +107,12 @@ async def _handle_api(adapter, 数据: dict):
     回声字段 = 数据.get('echo', '')
 
     async def send_fn(群号, 内容):
-        return await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 内容)
+        return await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 内容, adapter.onebot_api_token)
 
     async def send_cq_fn(群号, 内容):
-        return await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, 内容)
+        return await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, 内容, adapter.onebot_api_token)
 
-    结果 = await handle_api_request(数据, adapter.会话, adapter.onebot_api_地址, send_fn, send_cq_fn)
+    结果 = await handle_api_request(数据, adapter.会话, adapter.onebot_api_地址, send_fn, send_cq_fn, adapter.onebot_api_token)
 
     # 记录发送的消息 ID
     if isinstance(结果, dict):
@@ -133,11 +133,11 @@ async def _handle_send_message(adapter, 数据: dict):
     消息内容 = 数据.get('message', '')
 
     if 群号:
-        result = await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容)
+        result = await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容, adapter.onebot_api_token)
         message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
         adapter.记录hermes消息id(message_id)
     elif 用户id:
         from .onebot_api import send_private
-        result = await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容)
+        result = await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容, adapter.onebot_api_token)
         message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
         adapter.记录hermes消息id(message_id)

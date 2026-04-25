@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 from astrbot.api.all import logger
 
 
-async def send_text(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 消息内容: str) -> dict:
+async def send_text(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 消息内容: str, token: str = "") -> dict:
     """通过 OneBot API 发送文本消息到群"""
     url = f"{onebot_url}/send_group_msg"
     payload = {
@@ -16,9 +16,12 @@ async def send_text(session: aiohttp.ClientSession, onebot_url: str, 群号: int
         "group_id": 群号,
         "message": 消息内容
     }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
         logger.debug(f"[HermesAdapter] OneBot 发送文本请求: {payload}")
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             result = await resp.json()
             logger.debug(f"[HermesAdapter] OneBot 发送文本结果: {result}")
             return result
@@ -27,7 +30,7 @@ async def send_text(session: aiohttp.ClientSession, onebot_url: str, 群号: int
         return {"error": str(e)}
 
 
-async def send_cq(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 消息内容: list) -> dict:
+async def send_cq(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 消息内容: list, token: str = "") -> dict:
     """通过 OneBot API 发送 CQ 码格式消息"""
     url = f"{onebot_url}/send_group_msg"
     payload = {
@@ -35,9 +38,12 @@ async def send_cq(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 
         "group_id": 群号,
         "message": 消息内容
     }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
         logger.debug(f"[HermesAdapter] OneBot 发送CQ请求: {payload}")
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             result = await resp.json()
             logger.debug(f"[HermesAdapter] OneBot 发送CQ结果: {result}")
             return result
@@ -46,7 +52,7 @@ async def send_cq(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 
         return {"error": str(e)}
 
 
-async def send_private(session: aiohttp.ClientSession, onebot_url: str, 用户id, 消息内容: str) -> dict:
+async def send_private(session: aiohttp.ClientSession, onebot_url: str, 用户id, 消息内容: str, token: str = "") -> dict:
     """通过 OneBot API 发送私聊消息"""
     url = f"{onebot_url}/send_private_msg"
     payload = {
@@ -54,15 +60,18 @@ async def send_private(session: aiohttp.ClientSession, onebot_url: str, 用户id
         "user_id": 用户id,
         "message": 消息内容
     }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             return await resp.json()
     except Exception as e:
         logger.error(f"[HermesAdapter] 发送私聊消息失败: {e}", exc_info=True)
         return {"error": str(e)}
 
 
-async def upload_group_file(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 文件路径: str, 文件名: str = "") -> dict:
+async def upload_group_file(session: aiohttp.ClientSession, onebot_url: str, 群号: int, 文件路径: str, 文件名: str = "", token: str = "") -> dict:
     """通过 OneBot API 上传文件到群"""
     url = f"{onebot_url}/upload_group_file"
     payload = {
@@ -70,8 +79,11 @@ async def upload_group_file(session: aiohttp.ClientSession, onebot_url: str, 群
         "file": 文件路径,
         "name": 文件名 or 文件路径.split("/")[-1].split("\\")[-1]
     }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             result = await resp.json()
             logger.info(f"[HermesAdapter] OneBot 群文件上传结果: {result}")
             return result
@@ -80,7 +92,7 @@ async def upload_group_file(session: aiohttp.ClientSession, onebot_url: str, 群
         return {"error": str(e)}
 
 
-async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, 用户id, 文件路径: str, 文件名: str = "") -> dict:
+async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, 用户id, 文件路径: str, 文件名: str = "", token: str = "") -> dict:
     """通过 OneBot API 上传文件到私聊"""
     url = f"{onebot_url}/upload_private_file"
     payload = {
@@ -88,8 +100,11 @@ async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, �
         "file": 文件路径,
         "name": 文件名 or 文件路径.split("/")[-1].split("\\")[-1]
     }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     try:
-        async with session.post(url, json=payload) as resp:
+        async with session.post(url, json=payload, headers=headers) as resp:
             result = await resp.json()
             logger.info(f"[HermesAdapter] OneBot 私聊文件上传结果: {result}")
             return result
@@ -103,7 +118,8 @@ async def handle_api_request(
     session: aiohttp.ClientSession,
     onebot_url: str,
     send_fn,
-    send_cq_fn
+    send_cq_fn,
+    token: str = ""
 ) -> Dict[str, Any]:
     """
     处理 Hermes 的 OneBot API 请求。
@@ -122,6 +138,10 @@ async def handle_api_request(
     参数 = 数据.get('params', {})
 
     logger.info(f"[HermesAdapter] 收到 API 请求: {动作}, echo={数据.get('echo', '')}")
+
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
 
     try:
         if 动作 == 'send_group_msg':
@@ -144,17 +164,17 @@ async def handle_api_request(
                 "user_id": 参数.get('user_id'),
                 "message": 参数.get('message', '')
             }
-            async with session.post(url, json=payload) as resp:
+            async with session.post(url, json=payload, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'get_group_info':
             url = f"{onebot_url}/get_group_info"
-            async with session.get(url, params={"group_id": 参数.get('group_id')}) as resp:
+            async with session.get(url, params={"group_id": 参数.get('group_id')}, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'get_msg':
             url = f"{onebot_url}/get_msg"
-            async with session.get(url, params={"message_id": 参数.get('message_id')}) as resp:
+            async with session.get(url, params={"message_id": 参数.get('message_id')}, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'set_msg_emoji_like':
@@ -164,34 +184,34 @@ async def handle_api_request(
                 "emoji_id": 参数.get('emoji_id', 12),
                 "set": 参数.get('set', True)
             }
-            async with session.post(url, json=payload) as resp:
+            async with session.post(url, json=payload, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'send_forward_msg':
             url = f"{onebot_url}/send_forward_msg"
-            async with session.post(url, json={"messages": 参数.get('messages', [])}) as resp:
+            async with session.post(url, json={"messages": 参数.get('messages', [])}, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'send_group_forward_msg':
             url = f"{onebot_url}/send_group_forward_msg"
             payload = {"group_id": 参数.get('group_id'), "messages": 参数.get('messages', [])}
-            async with session.post(url, json=payload) as resp:
+            async with session.post(url, json=payload, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'get_group_list':
             url = f"{onebot_url}/get_group_list"
-            async with session.get(url) as resp:
+            async with session.get(url, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'get_group_member_info':
             url = f"{onebot_url}/get_group_member_info"
             params = {"group_id": 参数.get('group_id'), "user_id": 参数.get('user_id')}
-            async with session.get(url, params=params) as resp:
+            async with session.get(url, params=params, headers=headers) as resp:
                 return await resp.json()
         elif 动作 == 'friend_poke':
             url = f"{onebot_url}/friend_poke"
             params = {"user_id":参数.get('user_id')}
-            async with session.get(url, params=params) as resp:
+            async with session.get(url, params=params, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'upload_group_file':
@@ -201,7 +221,7 @@ async def handle_api_request(
                 "file": 参数.get('file', ''),
                 "name": 参数.get('name', '')
             }
-            async with session.post(url, json=payload) as resp:
+            async with session.post(url, json=payload, headers=headers) as resp:
                 return await resp.json()
 
         elif 动作 == 'upload_private_file':
@@ -211,7 +231,7 @@ async def handle_api_request(
                 "file": 参数.get('file', ''),
                 "name": 参数.get('name', '')
             }
-            async with session.post(url, json=payload) as resp:
+            async with session.post(url, json=payload, headers=headers) as resp:
                 return await resp.json()
 
         else:
