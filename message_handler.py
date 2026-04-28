@@ -185,3 +185,26 @@ async def build_onebot_event(
             事件体["sub_type"] = "临时会话"
 
     return 事件体
+
+# async def build_onebot_event(
+#     event: AiocqhttpMessageEvent,
+#     已转发键: str,
+# ) -> dict:
+#     """
+#     构造 OneBot v11 格式的消息事件体（支持群聊和私聊）。
+#     """
+#     if event.get_extra(已转发键, False):
+#         消息id = int(time.time() * 1000) % 2147483647
+#         logger.warning(f"消息已转发过，将使用随机id：{event.get_message_outline()}")
+#     else:
+#         try:
+#             消息id = int(event.message_obj.message_id)
+#         except Exception as e:
+#             消息id = int(time.time() * 1000) % 2147483647
+#             logger.error(f"获取消息id失败，将使用随机id：{e}", exc_info=True)
+#
+#     raw_message = event.get_raw_message()
+#
+#     raw_message['message_id'] = 消息id
+#
+#     return raw_message

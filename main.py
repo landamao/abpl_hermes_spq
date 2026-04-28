@@ -57,7 +57,15 @@ class Hermes适配器(Star):
 
         # HTTP API 服务器
         self.启用_http_服务器 = http配置.get('enable_http_server', True)
-        self.http_服务器_端口 = http配置.get('http_server_port', 8567)
+        self.http_服务器_地址 = http配置.get('http_server_addr', '0.0.0.0:8567')
+        # 解析 host:port
+        if ':' in str(self.http_服务器_地址):
+            parts = str(self.http_服务器_地址).rsplit(':', 1)
+            self.http_服务器_主机 = parts[0]
+            self.http_服务器_端口 = int(parts[1])
+        else:
+            self.http_服务器_主机 = '0.0.0.0'
+            self.http_服务器_端口 = int(self.http_服务器_地址)
         self.http_服务器_令牌 = http配置.get('http_server_token', '')
 
         # 消息过滤配置
@@ -128,7 +136,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   OneBot API 令牌: {self.onebot_api_token}")
         logger.info("[HermesAdapter] ═══ HTTP 服务器 ═══")
         logger.info(f"[HermesAdapter]   启用: {'是' if self.启用_http_服务器 else '否'}")
-        logger.info(f"[HermesAdapter]   端口: {self.http_服务器_端口}")
+        logger.info(f"[HermesAdapter]   地址: {self.http_服务器_地址}")
         logger.info(f"[HermesAdapter]   令牌: {'已设置' if self.http_服务器_令牌 else '无'}")
         logger.info("[HermesAdapter] ═══ 消息过滤 ═══")
         logger.info(f"[HermesAdapter]   触发关键词: {self.触发关键词}")
@@ -149,7 +157,7 @@ class Hermes适配器(Star):
         logger.info("[HermesAdapter] ═══ 表情回应 ═══")
         logger.info(f"[HermesAdapter]   启用: {'是' if self.emoji_like_启用 else '否'}")
         logger.info(f"[HermesAdapter]   表情ID: {self.emoji_like_id列表}")
-        # logger.debug("[HermesAdapter]   最后修改：2026-4-28 11:32")
+        logger.debug("[HermesAdapter]   最后修改：2026-4-25 4:28")
 
     # ========== 缓存管理 ==========
 
@@ -203,16 +211,16 @@ class Hermes适配器(Star):
         # 计算最长文件名长度用于对齐
         最长文件名 = max(len(os.path.basename(f)) for f in 所有文件) if 所有文件 else 0
         
-        # logger.debug("[HermesAdapter] ═══ 文件修改时间 ═══")
+        logger.debug("[HermesAdapter] ═══ 文件修改时间 ═══")
         for 文件路径 in sorted(所有文件):
             文件名 = os.path.basename(文件路径)
             修改时间 = os.path.getmtime(文件路径)
             修改时间_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(修改时间))
-            # logger.debug(f"[HermesAdapter]   {文件名:<{最长文件名}}  {修改时间_str}")
+            logger.debug(f"[HermesAdapter]   {文件名:<{最长文件名}}  {修改时间_str}")
         
         当前时间 = time.strftime("%Y-%m-%d %H:%M:%S")
-        # logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名}}  {当前时间}")
-        # logger.debug("[HermesAdapter] ═══════════════════════")
+        logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名}}  {当前时间}")
+        logger.debug("[HermesAdapter] ═══════════════════════")
 
         if self.启用_http_服务器:
             await start_http_server(self)
@@ -286,8 +294,12 @@ class Hermes适配器(Star):
         if not self._是否唤醒处理(event):
             return
 
+        # onebot事件体 = await build_onebot_event(
+        #     event, self.已转发键
+        # )
+
         onebot事件体 = await build_onebot_event(
-            event, event.get_message_str(), self.最大消息长度, self.已转发键
+            event, 消息内容, self.最大消息长度, self.已转发键
         )
 
         await ws_send(self, onebot事件体)
@@ -342,7 +354,7 @@ class Hermes适配器(Star):
             f'重连次数: {self.统计数据["ws_reconnects"]}次',
             '',
             f'Hermes WebSocket: {self.hermes_ws_链接}',
-            f'HTTP 服务器: http://localhost:{self.http_服务器_端口}',
+            f'HTTP 服务器: http://{self.http_服务器_地址}',
             f'已缓存群列表: {", ".join(self.群组事件.keys()) or "无"}',
         ]
         yield event.plain_result('\n'.join(输出行))
@@ -419,10 +431,12 @@ class Hermes适配器(Star):
             return "Hermes Agent 未连接，请稍后再试"
 
 
+        # onebot事件体 = await build_onebot_event(
+        #     event, self.已转发键
+        # )
         onebot事件体 = await build_onebot_event(
             event, event.get_message_str(), self.最大消息长度, self.已转发键
         )
-
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1

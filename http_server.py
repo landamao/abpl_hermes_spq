@@ -330,11 +330,11 @@ async def start_http_server(adapter):
         app.router.add_get('/api/command/{command_name}', lambda r: handle_command_detail(r, adapter))
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', adapter.http_服务器_端口)
+        site = web.TCPSite(runner, adapter.http_服务器_主机, adapter.http_服务器_端口)
         await site.start()
         adapter.http_运行器 = runner
         adapter.http_站点 = site
-        logger.info(f"[HermesAdapter] HTTP 服务器已启动: http://0.0.0.0:{adapter.http_服务器_端口}")
+        logger.info(f"[HermesAdapter] HTTP 服务器已启动: http://{adapter.http_服务器_主机}:{adapter.http_服务器_端口}")
     except Exception as e:
         logger.error(f"[HermesAdapter] 启动 HTTP 服务器失败: {e}")
 

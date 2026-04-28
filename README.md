@@ -323,7 +323,7 @@ hermes gateway restart   # 或根据其文档使用特定命令
 
 1. 打开 NapCat 的 `config.yaml` 或 WebUI。
 2. 添加一个 HTTP 服务器，地址填写：
-   - 如果 NapCat 与本插件部署在同一台机器：`http://127.0.0.1:8567` （端口对应本插件的 `http_server_port`，默认 8567）
+   - 如果 NapCat 与本插件部署在同一台机器：`http://127.0.0.1:8567` （对应本插件的 `http_server_addr`，默认 `0.0.0.0:8567`）
    - 如果跨机器，请使用实际 IP。
 3. 注意连接token配置
 

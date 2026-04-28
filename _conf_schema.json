@@ -41,11 +41,11 @@
                 "default": true,
                 "hint": "是否启动 HTTP API 服务器供 Hermes 调用"
             },
-            "http_server_port": {
-                "type": "int",
-                "description": "HTTP 服务器端口",
-                "default": 8567,
-                "hint": "HTTP API 服务器监听的端口号"
+            "http_server_addr": {
+                "type": "string",
+                "description": "HTTP 服务器地址",
+                "default": "127.0.0.1:8567",
+                "hint": "HTTP API 服务器监听地址，格式: host:port（如 127.0.0.1:8567 或 0.0.0.0:8567）"
             },
             "http_server_token": {
                 "type": "string",
