@@ -113,6 +113,28 @@ async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, �
         return {"error": str(e)}
 
 
+async def set_msg_emoji_like(session: aiohttp.ClientSession, onebot_url: str, message_id: int, emoji_id: int = 12, token: str = "") -> dict:
+    """通过 OneBot API 给消息贴表情回应"""
+    url = f"{onebot_url}/set_msg_emoji_like"
+    payload = {
+        "message_id": message_id,
+        "emoji_id": emoji_id,
+        "set": True
+    }
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        logger.debug(f"[HermesAdapter] OneBot 表情回应请求: payload={payload}")
+        async with session.post(url, json=payload, headers=headers) as resp:
+            result = await resp.json()
+            logger.debug(f"[HermesAdapter] OneBot 表情回应结果: {result}")
+            return result
+    except Exception as e:
+        logger.error(f"[HermesAdapter] 表情回应失败: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
 async def handle_api_request(
     数据: dict,
     session: aiohttp.ClientSession,

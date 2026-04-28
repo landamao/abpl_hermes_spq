@@ -48,7 +48,7 @@ async def ws_loop(adapter):
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}", exc_info=True)
+            logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}")
 
         if adapter.ws_已连接:
             adapter.ws_已连接 = False
@@ -119,6 +119,7 @@ async def _handle_api(adapter, 数据: dict):
         message_id = 结果.get("data", {}).get("message_id")
         if message_id:
             adapter.记录hermes消息id(message_id)
+            await adapter.emoji_like(int(message_id))
             logger.debug(f"[HermesAdapter] API 请求发送消息记录 ID: {message_id}")
 
     响应 = build_api_response(结果, 回声字段)
@@ -136,6 +137,8 @@ async def _handle_send_message(adapter, 数据: dict):
         result = await send_text(adapter.会话, adapter.onebot_api_地址, int(群号), 消息内容, adapter.onebot_api_token)
         message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
         adapter.记录hermes消息id(message_id)
+        if message_id:
+            await adapter.emoji_like(int(message_id))
     elif 用户id:
         from .onebot_api import send_private
         result = await send_private(adapter.会话, adapter.onebot_api_地址, int(用户id), 消息内容, adapter.onebot_api_token)

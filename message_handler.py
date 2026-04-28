@@ -4,8 +4,7 @@
 负责判断消息是否需要转发、构造 OneBot v11 格式事件体。
 """
 import time
-from typing import Tuple
-from astrbot.api.all import logger, Plain, Reply, At, MessageChain
+from astrbot.api.all import logger, Plain, At, Reply, MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 
@@ -22,7 +21,7 @@ def should_forward(
     deny_启用: bool,
     deny_允许用户: list,
     引用hermes消息: bool = False,
-) -> Tuple[bool, str]:
+) -> bool:
     """
     判断是否需要转发消息给 Hermes。
 
@@ -31,26 +30,6 @@ def should_forward(
     """
     群号 = event.get_group_id()
     用户id = event.get_sender_id()
-
-    # 0. 引用 Hermes 消息直接唤醒
-    if 引用hermes消息:
-        logger.debug(f"[HermesAdapter] 转发消息（原因：引用 Hermes 消息），内容：{消息内容[:30]}...")
-        return True, 消息内容
-
-    # 1. 转发所有消息
-    if 转发所有消息:
-        logger.debug(f"[HermesAdapter] 转发消息（原因：转发所有消息），内容：{消息内容[:30]}...")
-        return True, 消息内容
-
-    # 2. 群组白名单过滤
-    if 群号 and 允许的群组 and 群号 not in 允许的群组:
-        logger.debug(f"[HermesAdapter] 忽略消息（原因：群号 {群号} 不在允许的群组列表中）")
-        return False, 消息内容
-
-    # 3. 用户白名单过滤
-    if 允许的用户 and 用户id not in 允许的用户:
-        logger.debug(f"[HermesAdapter] 忽略消息（原因：用户 {用户id} 不在允许的用户列表中）")
-        return False, 消息内容
 
     # 4. /approve 命令处理
     if approve_启用:
@@ -61,11 +40,13 @@ def should_forward(
                 )
                 or 消息内容.startswith("/approve")
         ):
+        # if event.get_original_message_str().startswith("/approve"):
             if not _check_approve_deny_permission(用户id, approve_允许用户):
                 logger.info(f"[HermesAdapter] /approve 被拒绝: 用户 {用户id} 无权限")
-                return False, 消息内容
+                event.stop_event()
+                return False
             logger.debug(f"[HermesAdapter] 转发消息（原因：/approve 授权命令），用户：{用户id}")
-            return True, '/' + 消息内容.lstrip('/')
+            return True
 
     # 4.5 /deny 命令处理
     if deny_启用:
@@ -77,11 +58,36 @@ def should_forward(
                 )
                 or 消息内容.startswith("/deny")
         ):
+        # if event.get_original_message_str().startswith("/deny"):
             if not _check_approve_deny_permission(用户id, deny_允许用户):
                 logger.info(f"[HermesAdapter] /deny 被拒绝: 用户 {用户id} 无权限")
-                return False, 消息内容
+                event.stop_event()
+                return False
             logger.debug(f"[HermesAdapter] 转发消息（原因：/deny 授权命令），用户：{用户id}")
-            return True, '/' + 消息内容.lstrip('/')
+            return True
+
+
+
+    # 0. 引用 Hermes 消息直接唤醒
+    if 引用hermes消息:
+        logger.debug(f"[HermesAdapter] 转发消息（原因：引用 Hermes 消息），内容：{消息内容[:30]}...")
+        return True
+
+    # 1. 转发所有消息
+    if 转发所有消息:
+        logger.debug(f"[HermesAdapter] 转发消息（原因：转发所有消息），内容：{消息内容[:30]}...")
+        return True
+
+    # 2. 群组白名单过滤
+    if 群号 and 允许的群组 and 群号 not in 允许的群组:
+        logger.debug(f"[HermesAdapter] 忽略消息（原因：群号 {群号} 不在允许的群组列表中）")
+        return False
+
+    # 3. 用户白名单过滤
+    if 允许的用户 and 用户id not in 允许的用户:
+        logger.debug(f"[HermesAdapter] 忽略消息（原因：用户 {用户id} 不在允许的用户列表中）")
+        return False
+
 
     # 5. @ 机器人触发
     if 触发艾特机器人:
@@ -91,17 +97,17 @@ def should_forward(
             if isinstance(组件, At):
                 if str(组件.qq) == 自己id:
                     logger.debug(f"[HermesAdapter] 转发消息（原因：@ 机器人触发），内容：{消息内容[:30]}...")
-                    return True, 消息内容
+                    return True
 
     # 6. 关键词触发
     for 关键词 in 触发关键词:
         if 关键词.lower() in 消息内容.lower():
             logger.debug(f"[HermesAdapter] 转发消息（原因：命中关键词 '{关键词}'），内容：{消息内容[:30]}...")
-            return True, 消息内容
+            return True
 
     # 7. 不满足任何条件
     logger.debug(f"[HermesAdapter] 忽略消息（原因：不满足任何转发条件），内容：{消息内容[:30]}...")
-    return False, 消息内容
+    return False
 
 
 def _check_approve_deny_permission(用户id: str, 允许用户: list) -> bool:
@@ -113,7 +119,7 @@ def _check_approve_deny_permission(用户id: str, 允许用户: list) -> bool:
 
 async def build_onebot_event(
     event: AiocqhttpMessageEvent,
-    消息内容,
+    消息内容:str,
     最大消息长度: int,
     已转发键: str,
 ) -> dict:
@@ -169,9 +175,9 @@ async def build_onebot_event(
         事件体["sub_type"] = "normal"
         事件体["group_id"] = int(群号)
         try:
-            事件体["sender"]["role"] =  event.message_obj.raw_message.sender['role']
+            事件体["sender"]["role"] =  event.message_obj.raw_message['sender']['role']
         except Exception as e:
-            logger.warning(f"获取用户 {用户名} 群身份失败")
+            logger.warning(f"获取用户 {用户名} 群身份失败\n{e}")
     else:
         事件体["message_type"] = "private"
         事件体["sub_type"] = "friend"

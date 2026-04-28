@@ -188,5 +188,27 @@
                 }
             }
         }
+    },
+    "emoji_like": {
+        "description": "表情回应",
+        "type": "object",
+        "hint": "Hermes 发送消息后自动贴表情回应",
+        "items": {
+            "enabled": {
+                "type": "bool",
+                "description": "启用表情回应",
+                "default": false,
+                "hint": "Hermes 发送消息后自动给消息贴表情"
+            },
+            "emoji_ids": {
+                "type": "list",
+                "description": "表情ID列表",
+                "default": [12, 66, 76, 108, 122, 124, 144, 147, 175, 180, 192, 201, 282, 297],
+                "hint": "随机从这些表情ID中选一个贴上去",
+                "items": {
+                    "type": "int"
+                }
+            }
+        }
     }
 }

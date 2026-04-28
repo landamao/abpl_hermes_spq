@@ -284,12 +284,16 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)
+                if message_id:
+                    await adapter.emoji_like(int(message_id))
                 logger.debug(f"[HermesAdapter] 已通过 OneBot 发送 JSON, message_id={message_id}")
         elif hasattr(组件, 'text') and 组件.text:
             result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text, adapter.onebot_api_token)
             已发消息.append(result)
             message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
             adapter.记录hermes消息id(message_id)
+            if message_id:
+                await adapter.emoji_like(int(message_id))
             logger.debug(f"[HermesAdapter] 已通过 OneBot 发送文本, message_id={message_id}")
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
@@ -298,6 +302,8 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)
+                if message_id:
+                    await adapter.emoji_like(int(message_id))
                 logger.debug(f"[HermesAdapter] 已通过 OneBot 发送图片, message_id={message_id}")
 
 
