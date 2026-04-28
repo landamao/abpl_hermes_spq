@@ -79,10 +79,8 @@ help: |
   🔗 相关链接：
   GitHub: https://github.com/landamao/abpl_hermes_spq
   插件目录: /root/AstrBot/data/plugins/Hermes适配器/
-version: v3.11.0
+version: v3.12.0
 author: 懒大猫
-repo: https://github.com/landamao/my-hermess-pq
+repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
   - aiocqhttp
-
-#最后修改：2026-4-25 4:28

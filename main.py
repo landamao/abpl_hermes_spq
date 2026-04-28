@@ -22,7 +22,10 @@ from astrbot.api.all import (
 )
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-from .command_cache import build_command_cache, build_all_commands_set, check_command_allowed, resolve_command, categorize_commands
+from .command_cache import (
+    build_command_cache, build_all_commands_set,
+    check_command_allowed, resolve_command, categorize_commands
+)
 from .message_handler import should_forward, build_onebot_event
 from .http_server import start_http_server, stop_http_server, execute_command
 from .ws_client import ws_loop, ws_send
@@ -76,6 +79,7 @@ class Hermes适配器(Star):
         self.转发所有消息 = 过滤配置.get('forward_all_messages', False)
         self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
         self.引用唤醒 = 过滤配置.get('reply_to_hermes_trigger', True)
+        self.转发内置指令 = 过滤配置.get('forward_builtin_commands', True)
 
         # 冲突处理方式
         self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
@@ -146,6 +150,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
         logger.info(f"[HermesAdapter]   最大消息长度: {self.最大消息长度}")
         logger.info(f"[HermesAdapter]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
+        logger.info(f"[HermesAdapter]   转发内置指令: {'是' if self.转发内置指令 else '否'}")
         logger.info("[HermesAdapter] ═══ 冲突处理 ═══")
         logger.info(f"[HermesAdapter]   模式: {self.同时唤醒处理方式}")
         logger.info("[HermesAdapter] ═══ 授权命令 ═══")
@@ -287,20 +292,21 @@ class Hermes适配器(Star):
             self.触发关键词, self.触发艾特机器人,
             self.approve_启用, self.approve_允许用户,
             self.deny_启用, self.deny_允许用户,
-            引用hermes消息
+            引用hermes消息,
+            self.转发内置指令
         ):
             return
 
         if not self._是否唤醒处理(event):
             return
 
-        # onebot事件体 = await build_onebot_event(
-        #     event, self.已转发键
-        # )
-
         onebot事件体 = await build_onebot_event(
-            event, 消息内容, self.最大消息长度, self.已转发键
+            event, self.已转发键
         )
+
+        # onebot事件体 = await build_onebot_event(
+        #     event, 消息内容, self.最大消息长度, self.已转发键
+        # )
 
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
@@ -431,12 +437,12 @@ class Hermes适配器(Star):
             return "Hermes Agent 未连接，请稍后再试"
 
 
-        # onebot事件体 = await build_onebot_event(
-        #     event, self.已转发键
-        # )
         onebot事件体 = await build_onebot_event(
-            event, event.get_message_str(), self.最大消息长度, self.已转发键
+            event, self.已转发键
         )
+        # onebot事件体 = await build_onebot_event(
+        #     event, event.get_message_str(), self.最大消息长度, self.已转发键
+        # )
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1

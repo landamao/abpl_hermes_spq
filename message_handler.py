@@ -4,9 +4,65 @@
 负责判断消息是否需要转发、构造 OneBot v11 格式事件体。
 """
 import time
+# from astrbot.api.all import logger, Plain, At
 from astrbot.api.all import logger, Plain, At, Reply, MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
+Hermes内置指令 = {
+    # Session
+    "/new", "/reset",
+    "/clear",
+    "/history",
+    "/save",
+    "/retry",
+    "/undo",
+    "/title",
+    "/branch", "/fork",
+    "/compress",
+    "/rollback",
+    "/snapshot", "/snap",
+    "/stop",
+    "/background", "/bg",
+    "/btw",
+    "/agents", "/tasks",
+    "/queue", "/q",
+    "/steer",
+    "/status",
+    "/resume",
+    # Info
+    "/profile",
+    "/gquota",
+    "/help",
+    "/usage",
+    "/insights",
+    "/platforms", "/gateway",
+    "/copy",
+    "/paste",
+    "/image",
+    "/debug",
+    # Configuration
+    "/config",
+    "/model",
+    "/personality",
+    "/statusbar", "/sb",
+    "/verbose",
+    "/yolo",
+    "/reasoning",
+    "/skin",
+    "/voice",
+    "/busy",
+    # Tools & Skills
+    "/tools",
+    "/toolsets",
+    "/skills",
+    "/cron",
+    "/reload",
+    "/reload-mcp", "/reload_mcp",
+    "/browser",
+    "/plugins",
+    # Exit
+    "/quit", "/exit",
+}
 
 def should_forward(
     event: AiocqhttpMessageEvent,
@@ -21,6 +77,7 @@ def should_forward(
     deny_启用: bool,
     deny_允许用户: list,
     引用hermes消息: bool = False,
+    转发内置指令: bool = False,
 ) -> bool:
     """
     判断是否需要转发消息给 Hermes。
@@ -30,17 +87,12 @@ def should_forward(
     """
     群号 = event.get_group_id()
     用户id = event.get_sender_id()
+    # 原始文本 = event.get_original_message_str()
 
     # 4. /approve 命令处理
     if approve_启用:
-        if (
-                (
-                消息内容.startswith("approve") and
-                next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith("/")
-                )
-                or 消息内容.startswith("/approve")
-        ):
-        # if event.get_original_message_str().startswith("/approve"):
+        if 消息内容.startswith("/approve") or (消息内容.startswith("approve") and 以指令前缀开头(event)):
+        # if 原始文本.startswith("/approve"):
             if not _check_approve_deny_permission(用户id, approve_允许用户):
                 logger.info(f"[HermesAdapter] /approve 被拒绝: 用户 {用户id} 无权限")
                 event.stop_event()
@@ -50,15 +102,8 @@ def should_forward(
 
     # 4.5 /deny 命令处理
     if deny_启用:
-        if (
-                (
-                        消息内容.startswith("deny") and
-                        next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith(
-                            "/")
-                )
-                or 消息内容.startswith("/deny")
-        ):
-        # if event.get_original_message_str().startswith("/deny"):
+        if 消息内容.startswith("/deny") or (消息内容.startswith("deny") and 以指令前缀开头(event)):
+        # if 原始文本.startswith("/deny"):
             if not _check_approve_deny_permission(用户id, deny_允许用户):
                 logger.info(f"[HermesAdapter] /deny 被拒绝: 用户 {用户id} 无权限")
                 event.stop_event()
@@ -66,11 +111,15 @@ def should_forward(
             logger.debug(f"[HermesAdapter] 转发消息（原因：/deny 授权命令），用户：{用户id}")
             return True
 
-
-
     # 0. 引用 Hermes 消息直接唤醒
     if 引用hermes消息:
         logger.debug(f"[HermesAdapter] 转发消息（原因：引用 Hermes 消息），内容：{消息内容[:30]}...")
+        return True
+
+    # 0.1 Hermes 内置指令直接转发
+    if 转发内置指令 and 是内置指令(消息内容) and 以指令前缀开头(event):
+    # if 转发内置指令 and 原始文本.startswith("/") and 以指令前缀开头(event):
+        logger.debug(f"[HermesAdapter] 转发消息（原因：Hermes 内置指令），内容：{消息内容[:30]}...")
         return True
 
     # 1. 转发所有消息
@@ -87,7 +136,6 @@ def should_forward(
     if 允许的用户 and 用户id not in 允许的用户:
         logger.debug(f"[HermesAdapter] 忽略消息（原因：用户 {用户id} 不在允许的用户列表中）")
         return False
-
 
     # 5. @ 机器人触发
     if 触发艾特机器人:
@@ -208,3 +256,14 @@ async def build_onebot_event(
 #     raw_message['message_id'] = 消息id
 #
 #     return raw_message
+
+def 是内置指令(消息文本: str) -> bool:
+    分割 = 消息文本.strip().lower().split()
+    if not 分割:
+        return False
+    指令文本 = 分割[0].lstrip('/')
+    return 指令文本 in Hermes内置指令
+
+def 以指令前缀开头(event: AiocqhttpMessageEvent) -> bool:
+    """精确判断是否以`/`开头"""
+    return next((seg.text for seg in event.get_messages() if isinstance(seg, Plain)), '').strip().startswith("/")
