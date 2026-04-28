@@ -80,6 +80,7 @@ class Hermes适配器(Star):
         self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
         self.引用唤醒 = 过滤配置.get('reply_to_hermes_trigger', True)
         self.转发内置指令 = 过滤配置.get('forward_builtin_commands', True)
+        self.内置指令允许用户 = 清理列表(过滤配置.get('builtin_command_users', []))
 
         # 冲突处理方式
         self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
@@ -151,6 +152,7 @@ class Hermes适配器(Star):
         logger.info(f"[HermesAdapter]   最大消息长度: {self.最大消息长度}")
         logger.info(f"[HermesAdapter]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
         logger.info(f"[HermesAdapter]   转发内置指令: {'是' if self.转发内置指令 else '否'}")
+        logger.info(f"[HermesAdapter]   内置指令允许用户: {self.内置指令允许用户 or '全部'}")
         logger.info("[HermesAdapter] ═══ 冲突处理 ═══")
         logger.info(f"[HermesAdapter]   模式: {self.同时唤醒处理方式}")
         logger.info("[HermesAdapter] ═══ 授权命令 ═══")
@@ -293,7 +295,8 @@ class Hermes适配器(Star):
             self.approve_启用, self.approve_允许用户,
             self.deny_启用, self.deny_允许用户,
             引用hermes消息,
-            self.转发内置指令
+            self.转发内置指令,
+            self.内置指令允许用户
         ):
             return
 

@@ -78,6 +78,7 @@ def should_forward(
     deny_允许用户: list,
     引用hermes消息: bool = False,
     转发内置指令: bool = False,
+    内置指令允许用户: list = None,
 ) -> bool:
     """
     判断是否需要转发消息给 Hermes。
@@ -118,7 +119,11 @@ def should_forward(
 
     # 0.1 Hermes 内置指令直接转发
     if 转发内置指令 and 是内置指令(消息内容) and 以指令前缀开头(event):
-    # if 转发内置指令 and 原始文本.startswith("/") and 以指令前缀开头(event):
+        # 检查用户是否在允许列表中
+        if 内置指令允许用户 and 用户id not in 内置指令允许用户:
+            logger.debug(f"[HermesAdapter] 内置指令被拒绝: 用户 {用户id} 不在允许列表中")
+            event.stop_event()
+            return False
         logger.debug(f"[HermesAdapter] 转发消息（原因：Hermes 内置指令），内容：{消息内容[:30]}...")
         return True
 

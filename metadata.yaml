@@ -73,13 +73,14 @@ help: |
       └→ HTTP API ← Hermes Agent (调用 AstrBot 指令)
 
   📝 版本历史：
+  v3.13.0 - 内置指令用户白名单
   v3.4.0 - 新增私聊支持
   v3.3.0 - WebSocket 版本重构
 
   🔗 相关链接：
   GitHub: https://github.com/landamao/abpl_hermes_spq
   插件目录: /root/AstrBot/data/plugins/Hermes适配器/
-version: v3.12.0
+version: v3.13.0
 author: 懒大猫
 repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
