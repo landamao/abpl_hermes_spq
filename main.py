@@ -159,39 +159,6 @@ class Hermes适配器(Star):
         logger.info(f"[Hermes适配器]   表情ID: {self.emoji_like_id列表}")
         logger.debug("[Hermes适配器]   最后修改：2026-4-29 7:57")
 
-    # ========== 缓存管理 ==========
-
-    def rebuild_cache(self):
-        """重建指令处理器缓存"""
-        self.处理器缓存, self.别名到指令 = build_command_cache(self.context)
-        self._所有指令集合 = build_all_commands_set(self.处理器缓存, self.别名到指令)
-
-    def 记录hermes消息id(self, message_id: str):
-        """记录 Hermes 发送的消息 ID"""
-        if not message_id:
-            return
-        self.hermes_消息id集合.add(str(message_id))
-        # 超出上限时清理最早的（简单实现：直接清一半）
-        if len(self.hermes_消息id集合) > self.hermes_消息id_最大数量:
-            保留数量 = self.hermes_消息id_最大数量 // 2
-            self.hermes_消息id集合 = set(list(self.hermes_消息id集合)[-保留数量:])
-            # logger.debug(f"[Hermes适配器] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
-
-    async def emoji_like(self, message_id: int):
-        """给消息贴表情回应（异步，不阻塞）"""
-        if not self.emoji_like_启用 or not message_id:
-            return
-        try:
-            import random
-            from .onebot_api import set_msg_emoji_like
-            emoji_id = random.choice(self.emoji_like_id列表)
-            asyncio.create_task(set_msg_emoji_like(
-                self.会话, self.onebot_api_地址, message_id, emoji_id, self.onebot_api_token
-            ))
-            # logger.debug(f"[Hermes适配器] 已发起表情回应: message_id={message_id}, emoji_id={emoji_id}")
-        except Exception as e:
-            logger.error(f"[Hermes适配器] 表情回应发起失败: {e}")
-
     # ========== 生命周期 ==========
 
     async def initialize(self):
@@ -274,8 +241,8 @@ class Hermes适配器(Star):
         # 判断是否引用了 Hermes 发送的消息
         引用hermes消息 = False
         if self.引用唤醒:
-            if 消息链 and isinstance(消息链[0], Reply):
-                引用的消息id = str(消息链[0].id)
+            if 消息链 and isinstance(a := 消息链, Reply):
+                引用的消息id = str(a.id)
                 # logger.debug(f"[Hermes适配器] 引用消息ID={引用的消息id}, hermes消息ID集合={self.hermes_消息id集合}")
                 if 引用的消息id in self.hermes_消息id集合:
                     引用hermes消息 = True
@@ -322,6 +289,39 @@ class Hermes适配器(Star):
             event.stop_event()
             return True
         return False
+
+    # ========== 缓存管理 ==========
+
+    def rebuild_cache(self):
+        """重建指令处理器缓存"""
+        self.处理器缓存, self.别名到指令 = build_command_cache(self.context)
+        self._所有指令集合 = build_all_commands_set(self.处理器缓存, self.别名到指令)
+
+    def 记录hermes消息id(self, message_id: str):
+        """记录 Hermes 发送的消息 ID"""
+        if not message_id:
+            return
+        self.hermes_消息id集合.add(str(message_id))
+        # 超出上限时清理最早的（简单实现：直接清一半）
+        if len(self.hermes_消息id集合) > self.hermes_消息id_最大数量:
+            保留数量 = self.hermes_消息id_最大数量 // 2
+            self.hermes_消息id集合 = set(list(self.hermes_消息id集合)[-保留数量:])
+            # logger.debug(f"[Hermes适配器] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
+
+    async def emoji_like(self, message_id: int):
+        """给消息贴表情回应（异步，不阻塞）"""
+        if not self.emoji_like_启用 or not message_id:
+            return
+        try:
+            import random
+            from .onebot_api import set_msg_emoji_like
+            emoji_id = random.choice(self.emoji_like_id列表)
+            asyncio.create_task(set_msg_emoji_like(
+                self.会话, self.onebot_api_地址, message_id, emoji_id, self.onebot_api_token
+            ))
+            # logger.debug(f"[Hermes适配器] 已发起表情回应: message_id={message_id}, emoji_id={emoji_id}")
+        except Exception as e:
+            logger.error(f"[Hermes适配器] 表情回应发起失败: {e}")
 
     # ========== 用户指令 ==========
 

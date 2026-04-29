@@ -32,8 +32,8 @@ def should_forward(
 
     # 4. /approve 命令处理
     if approve_启用:
-        if hasattr(event, "get_original_message_str"):
-            if event.get_original_message_str().startswith("/approve"):
+        if msg_func := getattr(event, "get_original_message_str", None):
+            if msg_func().startswith("/approve"):
                 if not _check_approve_deny_permission(用户id, approve_允许用户):
                     logger.info(f"[Hermes适配器] /approve 被拒绝: 用户 {用户id} 无权限")
                     event.stop_event()
@@ -50,8 +50,8 @@ def should_forward(
 
     # 4.5 /deny 命令处理
     if deny_启用:
-        if hasattr(event, "get_original_message_str"):
-            if event.get_original_message_str().startswith("/deny"):
+        if msg_func := getattr(event, "get_original_message_str", None):
+            if msg_func().startswith("/deny"):
                 if not _check_approve_deny_permission(用户id, deny_允许用户):
                     logger.info(f"[Hermes适配器] /deny 被拒绝: 用户 {用户id} 无权限")
                     event.stop_event()
