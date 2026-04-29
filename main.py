@@ -233,16 +233,17 @@ class Hermes适配器(Star):
 
         # 判断是否为框架指令：空格分割后第一个词在指令集合中则跳过
         if 消息内容:
-            第一个词 = 消息内容.split()[0].lower() if 消息内容.split() else ''
-            if 第一个词 and 第一个词 in self._所有指令集合:
+            分割 = 消息内容.strip().split()
+            第一个词 = 分割[0].lower() if 分割 else ''
+            if 第一个词 in self._所有指令集合:
                 # logger.debug(f"[Hermes适配器] 跳过框架指令: {第一个词}")
                 return
 
         # 判断是否引用了 Hermes 发送的消息
         引用hermes消息 = False
         if self.引用唤醒:
-            if 消息链 and isinstance(a := 消息链, Reply):
-                引用的消息id = str(a.id)
+            if 消息链 and isinstance(消息链[0], Reply):
+                引用的消息id = str(消息链[0].id)
                 # logger.debug(f"[Hermes适配器] 引用消息ID={引用的消息id}, hermes消息ID集合={self.hermes_消息id集合}")
                 if 引用的消息id in self.hermes_消息id集合:
                     引用hermes消息 = True

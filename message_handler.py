@@ -23,9 +23,6 @@ def should_forward(
 ) -> bool:
     """
     判断是否需要转发消息给 Hermes。
-
-    Returns:
-        (是否应转发, 处理后的消息内容)
     """
     群号 = event.get_group_id()
     用户id = event.get_sender_id()
@@ -110,9 +107,9 @@ def should_forward(
 
 def _check_approve_deny_permission(用户id: str, 允许用户: list) -> bool:
     """检查用户是否有 /approve 或 /deny 的权限"""
-    if 允许用户 and 用户id in 允许用户:
+    if not 允许用户:
         return True
-    return False
+    return 用户id in 允许用户
 
 
 async def build_onebot_event(

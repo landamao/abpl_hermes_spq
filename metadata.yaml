@@ -1,6 +1,6 @@
 name: Hermes适配器
 desc: Hermes Agent 适配器 (WebSocket 版本) - 实现 AstrBot 与 Hermes 的双向通信
-version: v3.14.2
+version: v3.14.3
 author: 懒大猫
 repo: https://github.com/landamao/abpl_hermes_spq
 support_platforms:
