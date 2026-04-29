@@ -110,21 +110,6 @@
                 "description": "引用Hermes消息直接唤醒",
                 "default": true,
                 "hint": "引用Hermes发送的消息时，是否直接唤醒Hermes回复"
-            },
-            "forward_builtin_commands": {
-                "type": "bool",
-                "description": "转发内置指令",
-                "default": true,
-                "hint": "消息是Hermes内置指令（如 /new、/help 等）时是否直接转发给Hermes处理"
-            },
-            "builtin_command_users": {
-                "type": "list",
-                "description": "允许转发内置指令的用户",
-                "default": [],
-                "hint": "留空表示所有用户都可以转发。填写用户ID列表，只有列表中的用户才能使用Hermes内置指令",
-                "items": {
-                    "type": "string"
-                }
             }
         }
     },

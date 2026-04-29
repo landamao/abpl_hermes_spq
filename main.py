@@ -22,14 +22,11 @@ from astrbot.api.all import (
 )
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-from .command_cache import (
-    build_command_cache, build_all_commands_set,
-    check_command_allowed, resolve_command, categorize_commands
-)
+from .command_cache import build_command_cache, build_all_commands_set, check_command_allowed, resolve_command, categorize_commands
 from .message_handler import should_forward, build_onebot_event
 from .http_server import start_http_server, stop_http_server, execute_command
 from .ws_client import ws_loop, ws_send
-
+from .aiocqhttp_patch import patch_aiocqhttp
 
 class Hermes适配器(Star):
     """Hermes Agent 适配器 - WebSocket 版本"""
@@ -37,7 +34,7 @@ class Hermes适配器(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-
+        patch_aiocqhttp()
         def 清理列表(列表):
             return [i.strip() for i in 列表 if i.strip()]
 
@@ -79,8 +76,6 @@ class Hermes适配器(Star):
         self.转发所有消息 = 过滤配置.get('forward_all_messages', False)
         self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
         self.引用唤醒 = 过滤配置.get('reply_to_hermes_trigger', True)
-        self.转发内置指令 = 过滤配置.get('forward_builtin_commands', True)
-        self.内置指令允许用户 = 清理列表(过滤配置.get('builtin_command_users', []))
 
         # 冲突处理方式
         self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
@@ -132,39 +127,37 @@ class Hermes适配器(Star):
             'ws_reconnects': 0,
             'start_time': time.time()
         }
-        self.已转发键 = "[HermesAdapter] 已转发"
+        self.已转发键 = "[Hermes适配器] 已转发"
 
-        logger.info("[HermesAdapter] 插件已加载 (WebSocket 版本)")
-        logger.info("[HermesAdapter] ═══ 连接配置 ═══")
-        logger.info(f"[HermesAdapter]   Hermes WebSocket: {self.hermes_ws_链接}")
-        logger.info(f"[HermesAdapter]   OneBot API: {self.onebot_api_地址}")
-        logger.info(f"[HermesAdapter]   OneBot API 令牌: {self.onebot_api_token}")
-        logger.info("[HermesAdapter] ═══ HTTP 服务器 ═══")
-        logger.info(f"[HermesAdapter]   启用: {'是' if self.启用_http_服务器 else '否'}")
-        logger.info(f"[HermesAdapter]   地址: {self.http_服务器_地址}")
-        logger.info(f"[HermesAdapter]   令牌: {'已设置' if self.http_服务器_令牌 else '无'}")
-        logger.info("[HermesAdapter] ═══ 消息过滤 ═══")
-        logger.info(f"[HermesAdapter]   触发关键词: {self.触发关键词}")
-        logger.info(f"[HermesAdapter]   @机器人触发: {'是' if self.触发艾特机器人 else '否'}")
-        logger.info(f"[HermesAdapter]   允许的群组: {self.允许的群组 or '全部'}")
-        logger.info(f"[HermesAdapter]   允许的用户: {self.允许的用户 or '全部'}")
-        logger.info(f"[HermesAdapter]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
-        logger.info(f"[HermesAdapter]   最大消息长度: {self.最大消息长度}")
-        logger.info(f"[HermesAdapter]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
-        logger.info(f"[HermesAdapter]   转发内置指令: {'是' if self.转发内置指令 else '否'}")
-        logger.info(f"[HermesAdapter]   内置指令允许用户: {self.内置指令允许用户 or '全部'}")
-        logger.info("[HermesAdapter] ═══ 冲突处理 ═══")
-        logger.info(f"[HermesAdapter]   模式: {self.同时唤醒处理方式}")
-        logger.info("[HermesAdapter] ═══ 授权命令 ═══")
-        logger.info(f"[HermesAdapter]   /approve: {'启用' if self.approve_启用 else '禁用'} (用户: {self.approve_允许用户 or '全部'})")
-        logger.info(f"[HermesAdapter]   /deny: {'启用' if self.deny_启用 else '禁用'} (用户: {self.deny_允许用户 or '全部'})")
-        logger.info("[HermesAdapter] ═══ 指令过滤 ═══")
-        logger.info(f"[HermesAdapter]   白名单: {self.指令白名单 or '无限制'}")
-        logger.info(f"[HermesAdapter]   黑名单: {self.指令黑名单}")
-        logger.info("[HermesAdapter] ═══ 表情回应 ═══")
-        logger.info(f"[HermesAdapter]   启用: {'是' if self.emoji_like_启用 else '否'}")
-        logger.info(f"[HermesAdapter]   表情ID: {self.emoji_like_id列表}")
-        logger.debug("[HermesAdapter]   最后修改：2026-4-25 4:28")
+        logger.info("[Hermes适配器] 插件已加载 (WebSocket 版本)")
+        logger.info("[Hermes适配器] ═══ 连接配置 ═══")
+        logger.info(f"[Hermes适配器]   Hermes WebSocket: {self.hermes_ws_链接}")
+        logger.info(f"[Hermes适配器]   OneBot API: {self.onebot_api_地址}")
+        logger.info(f"[Hermes适配器]   OneBot API 令牌: {self.onebot_api_token}")
+        logger.info("[Hermes适配器] ═══ HTTP 服务器 ═══")
+        logger.info(f"[Hermes适配器]   启用: {'是' if self.启用_http_服务器 else '否'}")
+        logger.info(f"[Hermes适配器]   地址: {self.http_服务器_地址}")
+        logger.info(f"[Hermes适配器]   令牌: {'已设置' if self.http_服务器_令牌 else '无'}")
+        logger.info("[Hermes适配器] ═══ 消息过滤 ═══")
+        logger.info(f"[Hermes适配器]   触发关键词: {self.触发关键词}")
+        logger.info(f"[Hermes适配器]   @机器人触发: {'是' if self.触发艾特机器人 else '否'}")
+        logger.info(f"[Hermes适配器]   允许的群组: {self.允许的群组 or '全部'}")
+        logger.info(f"[Hermes适配器]   允许的用户: {self.允许的用户 or '全部'}")
+        logger.info(f"[Hermes适配器]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
+        logger.info(f"[Hermes适配器]   最大消息长度: {self.最大消息长度}")
+        logger.info(f"[Hermes适配器]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
+        logger.info("[Hermes适配器] ═══ 冲突处理 ═══")
+        logger.info(f"[Hermes适配器]   模式: {self.同时唤醒处理方式}")
+        logger.info("[Hermes适配器] ═══ 授权命令 ═══")
+        logger.info(f"[Hermes适配器]   /approve: {'启用' if self.approve_启用 else '禁用'} (用户: {self.approve_允许用户 or '全部'})")
+        logger.info(f"[Hermes适配器]   /deny: {'启用' if self.deny_启用 else '禁用'} (用户: {self.deny_允许用户 or '全部'})")
+        logger.info("[Hermes适配器] ═══ 指令过滤 ═══")
+        logger.info(f"[Hermes适配器]   白名单: {self.指令白名单 or '无限制'}")
+        logger.info(f"[Hermes适配器]   黑名单: {self.指令黑名单}")
+        logger.info("[Hermes适配器] ═══ 表情回应 ═══")
+        logger.info(f"[Hermes适配器]   启用: {'是' if self.emoji_like_启用 else '否'}")
+        logger.info(f"[Hermes适配器]   表情ID: {self.emoji_like_id列表}")
+        logger.debug("[Hermes适配器]   最后修改：2026-4-29 7:57")
 
     # ========== 缓存管理 ==========
 
@@ -182,7 +175,7 @@ class Hermes适配器(Star):
         if len(self.hermes_消息id集合) > self.hermes_消息id_最大数量:
             保留数量 = self.hermes_消息id_最大数量 // 2
             self.hermes_消息id集合 = set(list(self.hermes_消息id集合)[-保留数量:])
-            # logger.debug(f"[HermesAdapter] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
+            # logger.debug(f"[Hermes适配器] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
 
     async def emoji_like(self, message_id: int):
         """给消息贴表情回应（异步，不阻塞）"""
@@ -195,9 +188,9 @@ class Hermes适配器(Star):
             asyncio.create_task(set_msg_emoji_like(
                 self.会话, self.onebot_api_地址, message_id, emoji_id, self.onebot_api_token
             ))
-            # logger.debug(f"[HermesAdapter] 已发起表情回应: message_id={message_id}, emoji_id={emoji_id}")
+            # logger.debug(f"[Hermes适配器] 已发起表情回应: message_id={message_id}, emoji_id={emoji_id}")
         except Exception as e:
-            logger.error(f"[HermesAdapter] 表情回应发起失败: {e}")
+            logger.error(f"[Hermes适配器] 表情回应发起失败: {e}")
 
     # ========== 生命周期 ==========
 
@@ -214,26 +207,26 @@ class Hermes适配器(Star):
         py文件 = glob.glob(os.path.join(插件目录, "*.py"))
         pyc文件 = glob.glob(os.path.join(插件目录, "__pycache__", "*.pyc"))
         所有文件 = py文件 + pyc文件
-        
+
         # 计算最长文件名长度用于对齐
         最长文件名 = max(len(os.path.basename(f)) for f in 所有文件) if 所有文件 else 0
-        
-        logger.debug("[HermesAdapter] ═══ 文件修改时间 ═══")
+
+        logger.debug("[Hermes适配器] ═══ 文件修改时间 ═══")
         for 文件路径 in sorted(所有文件):
             文件名 = os.path.basename(文件路径)
             修改时间 = os.path.getmtime(文件路径)
             修改时间_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(修改时间))
-            logger.debug(f"[HermesAdapter]   {文件名:<{最长文件名}}  {修改时间_str}")
+            logger.debug(f"[Hermes适配器]   {文件名:<{最长文件名}}  {修改时间_str}")
         
         当前时间 = time.strftime("%Y-%m-%d %H:%M:%S")
-        logger.debug(f"[HermesAdapter]   {'当前时间':<{最长文件名}}  {当前时间}")
-        logger.debug("[HermesAdapter] ═══════════════════════")
+        logger.debug(f"[Hermes适配器]   {'当前时间':<{最长文件名}}  {当前时间}")
+        logger.debug("[Hermes适配器] ═══════════════════════")
 
         if self.启用_http_服务器:
             await start_http_server(self)
 
         self._ws_任务 = asyncio.create_task(ws_loop(self))
-        logger.info("[HermesAdapter] 初始化完成")
+        logger.info("[Hermes适配器] 初始化完成")
 
     async def terminate(self):
         """插件终止时清理资源"""
@@ -252,7 +245,7 @@ class Hermes适配器(Star):
         if self.会话:
             await self.会话.close()
 
-        logger.info("[HermesAdapter] 插件已停止")
+        logger.info("[Hermes适配器] 插件已停止")
 
     # ========== 消息监听和转发 ==========
 
@@ -275,7 +268,7 @@ class Hermes适配器(Star):
         if 消息内容:
             第一个词 = 消息内容.split()[0].lower() if 消息内容.split() else ''
             if 第一个词 and 第一个词 in self._所有指令集合:
-                # logger.debug(f"[HermesAdapter] 跳过框架指令: {第一个词}")
+                # logger.debug(f"[Hermes适配器] 跳过框架指令: {第一个词}")
                 return
 
         # 判断是否引用了 Hermes 发送的消息
@@ -283,10 +276,10 @@ class Hermes适配器(Star):
         if self.引用唤醒:
             if 消息链 and isinstance(消息链[0], Reply):
                 引用的消息id = str(消息链[0].id)
-                # logger.debug(f"[HermesAdapter] 引用消息ID={引用的消息id}, hermes消息ID集合={self.hermes_消息id集合}")
+                # logger.debug(f"[Hermes适配器] 引用消息ID={引用的消息id}, hermes消息ID集合={self.hermes_消息id集合}")
                 if 引用的消息id in self.hermes_消息id集合:
                     引用hermes消息 = True
-                    logger.info(f"[HermesAdapter] 检测到引用 Hermes 消息: {引用的消息id}，直接唤醒")
+                    logger.info(f"[Hermes适配器] 检测到引用 Hermes 消息: {引用的消息id}，直接唤醒")
 
         if not should_forward(
             event, 消息内容,
@@ -294,9 +287,7 @@ class Hermes适配器(Star):
             self.触发关键词, self.触发艾特机器人,
             self.approve_启用, self.approve_允许用户,
             self.deny_启用, self.deny_允许用户,
-            引用hermes消息,
-            self.转发内置指令,
-            self.内置指令允许用户
+            引用hermes消息
         ):
             return
 
@@ -304,34 +295,30 @@ class Hermes适配器(Star):
             return
 
         onebot事件体 = await build_onebot_event(
-            event, self.已转发键
+            event, 消息内容, self.最大消息长度, self.已转发键
         )
-
-        # onebot事件体 = await build_onebot_event(
-        #     event, 消息内容, self.最大消息长度, self.已转发键
-        # )
 
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1
         来源 = "群聊" if 群号 else "私聊"
-        logger.info(f"[HermesAdapter] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
+        logger.info(f"[Hermes适配器] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
 
     def _是否唤醒处理(self, event: AiocqhttpMessageEvent) -> bool:
         """判断 LLM 和 Hermes 同时唤醒时的处理方式"""
         if self.同时唤醒处理方式 == 'hermes_only':
-            logger.info("[HermesAdapter] 终止事件，使用hermes")
+            logger.info("[Hermes适配器] 终止事件，使用hermes")
             event.stop_event()
             return True
         elif self.同时唤醒处理方式 == 'both':
             if event.is_at_or_wake_command:
-                logger.info("[HermesAdapter] 已同时唤醒")
+                logger.info("[Hermes适配器] 已同时唤醒")
             return True
         elif self.同时唤醒处理方式 == 'llm_only':
             if event.is_at_or_wake_command:
-                logger.info("[HermesAdapter] llm已唤醒，不使用hermes")
+                logger.info("[Hermes适配器] llm已唤醒，不使用hermes")
                 return False
-            logger.info("[HermesAdapter] llm未唤醒，使用hermes")
+            logger.info("[Hermes适配器] llm未唤醒，使用hermes")
             event.stop_event()
             return True
         return False
@@ -398,12 +385,12 @@ class Hermes适配器(Star):
                 return await self._llm_forward_task(event, task)
 
         except Exception as e:
-            logger.error(f"[HermesAdapter] LLM工具执行失败: {e}", exc_info=True)
+            logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
     async def _llm_execute_command(self, event: AiocqhttpMessageEvent, command: str, args: str, group_id: str) -> str:
         """LLM 工具：执行具体指令"""
-        logger.info(f"[HermesAdapter] LLM工具执行指令: {command} {args}")
+        logger.info(f"[Hermes适配器] LLM工具执行指令: {command} {args}")
 
         可执行, 原因 = check_command_allowed(command, self.指令白名单, self.指令黑名单)
         if not 可执行:
@@ -434,18 +421,14 @@ class Hermes适配器(Star):
 
     async def _llm_forward_task(self, event: AiocqhttpMessageEvent, task: str) -> str:
         """LLM 工具：转发任务给 Hermes"""
-        logger.info(f"[HermesAdapter] LLM工具执行任务: {task}")
+        logger.info(f"[Hermes适配器] LLM工具执行任务: {task}")
 
         if not self.ws_已连接:
             return "Hermes Agent 未连接，请稍后再试"
 
-
         onebot事件体 = await build_onebot_event(
-            event, self.已转发键
+            event, event.get_message_str(), self.最大消息长度, self.已转发键
         )
-        # onebot事件体 = await build_onebot_event(
-        #     event, event.get_message_str(), self.最大消息长度, self.已转发键
-        # )
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1

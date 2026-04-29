@@ -42,7 +42,7 @@ def build_command_cache(context) -> Tuple[Dict[str, Dict], Dict[str, str]]:
         所有插件 = context.get_all_stars()
         所有插件 = [p for p in 所有插件 if p.activated]
     except Exception as e:
-        logger.error(f"[HermesAdapter] 获取插件列表失败: {e}")
+        logger.error(f"[Hermes适配器] 获取插件列表失败: {e}")
         return 处理器缓存, 别名到指令
 
     if not 所有插件:
@@ -108,7 +108,7 @@ def build_command_cache(context) -> Tuple[Dict[str, Dict], Dict[str, str]]:
                     别名 = 别名[1:]
                 别名到指令[别名] = 指令名称
 
-    logger.info(f"[HermesAdapter] 已缓存 {len(处理器缓存)} 个指令处理器")
+    logger.info(f"[Hermes适配器] 已缓存 {len(处理器缓存)} 个指令处理器")
     return 处理器缓存, 别名到指令
 
 

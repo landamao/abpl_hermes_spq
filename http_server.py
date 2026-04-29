@@ -151,7 +151,7 @@ async def handle_execute(请求: web.Request, adapter) -> web.Response:
         return web.json_response({'success': False, 'error': '无效的 JSON 格式'}, status=400)
     except Exception as e:
         adapter.统计数据['errors'] += 1
-        logger.error(f"[HermesAdapter] 执行指令失败: {e}", exc_info=True)
+        logger.error(f"[Hermes适配器] 执行指令失败: {e}", exc_info=True)
         return web.json_response({'success': False, 'error': str(e)}, status=500)
 
 
@@ -180,7 +180,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
             )
             事件对象.message_obj = astrbot消息
         else:
-            logger.warning(f"[HermesAdapter] 群 {群号} 没有存储的 event，使用模拟对象")
+            logger.warning(f"[Hermes适配器] 群 {群号} 没有存储的 event，使用模拟对象")
             事件对象 = _build_simulated_event(adapter, 消息字符串, 群号, 用户id, 用户名)
             if isinstance(事件对象, dict):
                 return 事件对象
@@ -189,7 +189,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
         结果图片列表 = []
         已发消息 = []
 
-        logger.info(f"[HermesAdapter] 开始执行指令: {指令名称}, 参数: {参数列表}")
+        logger.info(f"[Hermes适配器] 开始执行指令: {指令名称}, 参数: {参数列表}")
 
         try:
             结果数量 = 0
@@ -205,7 +205,7 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
                             try:
                                 await _send_result_to_group(adapter, int(群号), 执行结果, 已发消息)
                             except Exception as send_err:
-                                logger.error(f"[HermesAdapter] OneBot 发送失败: {send_err}", exc_info=True)
+                                logger.error(f"[Hermes适配器] OneBot 发送失败: {send_err}", exc_info=True)
                         _collect_result(执行结果, 结果文本列表, 结果图片列表)
             else:
                 # 协程：用 await 调用
@@ -216,21 +216,21 @@ async def execute_command(adapter, 处理器信息: Dict, 参数列表: str = ''
                         try:
                             await _send_result_to_group(adapter, int(群号), 执行结果, 已发消息)
                         except Exception as send_err:
-                            logger.error(f"[HermesAdapter] OneBot 发送失败: {send_err}", exc_info=True)
+                            logger.error(f"[Hermes适配器] OneBot 发送失败: {send_err}", exc_info=True)
                     _collect_result(执行结果, 结果文本列表, 结果图片列表)
             
-            logger.info(f"[HermesAdapter] 执行完成，共 {结果数量} 个结果")
+            logger.info(f"[Hermes适配器] 执行完成，共 {结果数量} 个结果")
         except TypeError as 类型错误:
-            logger.warning(f"[HermesAdapter] 异步生成器失败，尝试同步调用: {类型错误}")
+            logger.warning(f"[Hermes适配器] 异步生成器失败，尝试同步调用: {类型错误}")
             执行结果 = await 处理器.handler(事件对象)
             if 执行结果 is not None:
                 _collect_result(执行结果, 结果文本列表, 结果图片列表)
         except Exception as e:
-            logger.error(f"[HermesAdapter] 执行指令异常: {e}", exc_info=True)
+            logger.error(f"[Hermes适配器] 执行指令异常: {e}", exc_info=True)
 
         return {'texts': 结果文本列表, 'images': 结果图片列表, 'sent_messages': len(已发消息), 'success': True}
     except Exception as e:
-        logger.error(f"[HermesAdapter] 内部执行指令失败: {e}", exc_info=True)
+        logger.error(f"[Hermes适配器] 内部执行指令失败: {e}", exc_info=True)
         return {'texts': [], 'images': [], 'success': False, 'error': str(e)}
 
 
@@ -286,7 +286,7 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
                 adapter.记录hermes消息id(message_id)
                 if message_id:
                     await adapter.emoji_like(int(message_id))
-                logger.debug(f"[HermesAdapter] 已通过 OneBot 发送 JSON, message_id={message_id}")
+                logger.debug(f"[Hermes适配器] 已通过 OneBot 发送 JSON, message_id={message_id}")
         elif hasattr(组件, 'text') and 组件.text:
             result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text, adapter.onebot_api_token)
             已发消息.append(result)
@@ -294,7 +294,7 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
             adapter.记录hermes消息id(message_id)
             if message_id:
                 await adapter.emoji_like(int(message_id))
-            logger.debug(f"[HermesAdapter] 已通过 OneBot 发送文本, message_id={message_id}")
+            logger.debug(f"[Hermes适配器] 已通过 OneBot 发送文本, message_id={message_id}")
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
                 onebot消息内容 = [{"type": "image", "data": {"file": 组件.url}}]
@@ -304,7 +304,7 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
                 adapter.记录hermes消息id(message_id)
                 if message_id:
                     await adapter.emoji_like(int(message_id))
-                logger.debug(f"[HermesAdapter] 已通过 OneBot 发送图片, message_id={message_id}")
+                logger.debug(f"[Hermes适配器] 已通过 OneBot 发送图片, message_id={message_id}")
 
 
 def _collect_result(执行结果, 文本列表: list, 图片列表: list):
@@ -334,9 +334,9 @@ async def start_http_server(adapter):
         await site.start()
         adapter.http_运行器 = runner
         adapter.http_站点 = site
-        logger.info(f"[HermesAdapter] HTTP 服务器已启动: http://{adapter.http_服务器_主机}:{adapter.http_服务器_端口}")
+        logger.info(f"[Hermes适配器] HTTP 服务器已启动: http://{adapter.http_服务器_主机}:{adapter.http_服务器_端口}")
     except Exception as e:
-        logger.error(f"[HermesAdapter] 启动 HTTP 服务器失败: {e}")
+        logger.error(f"[Hermes适配器] 启动 HTTP 服务器失败: {e}")
 
 
 async def stop_http_server(adapter):

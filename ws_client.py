@@ -17,7 +17,7 @@ async def ws_connect(adapter):
     if adapter.hermes_访问令牌:
         headers['Authorization'] = f'Bearer {adapter.hermes_访问令牌}'
 
-    logger.info(f"[HermesAdapter] 正在连接到 Hermes: {adapter.hermes_ws_链接}")
+    logger.info(f"[Hermes适配器] 正在连接到 Hermes: {adapter.hermes_ws_链接}")
 
     async with websockets.connect(
         adapter.hermes_ws_链接,
@@ -29,7 +29,7 @@ async def ws_connect(adapter):
         adapter.ws_已连接 = True
         adapter.重连延迟 = 1.0
 
-        logger.info("[HermesAdapter] WebSocket 已连接到 Hermes")
+        logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
 
         await _send_connect(adapter)
 
@@ -37,7 +37,7 @@ async def ws_connect(adapter):
             try:
                 await _handle_message(adapter, msg)
             except Exception as e:
-                logger.error(f"[HermesAdapter] 处理 WebSocket 消息失败: {e}", exc_info=True)
+                logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
 
 
 async def ws_loop(adapter):
@@ -48,14 +48,14 @@ async def ws_loop(adapter):
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 连接异常: {e}")
+            logger.error(f"[Hermes适配器] WebSocket 连接异常: {e}")
 
         if adapter.ws_已连接:
             adapter.ws_已连接 = False
-            logger.info("[HermesAdapter] WebSocket 断开，准备重连...")
+            logger.info("[Hermes适配器] WebSocket 断开，准备重连...")
 
         adapter.统计数据['ws_reconnects'] += 1
-        logger.info(f"[HermesAdapter] 等待 {adapter.重连延迟:.1f}s 后重连...")
+        logger.info(f"[Hermes适配器] 等待 {adapter.重连延迟:.1f}s 后重连...")
         await asyncio.sleep(adapter.重连延迟)
         adapter.重连延迟 = min(adapter.重连延迟 * 2, adapter.最大重连延迟)
 
@@ -66,8 +66,8 @@ async def ws_send(adapter, 数据: dict):
         try:
             await adapter.ws_连接.send(json.dumps(数据, ensure_ascii=False))
         except Exception as e:
-            logger.error(f"[HermesAdapter] WebSocket 发送失败: {e}", exc_info=True)
-            logger.debug(f"[HermesAdapter] 发送失败，原始数据: {数据}")
+            logger.error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
+            logger.debug(f"[Hermes适配器] 发送失败，原始数据: {数据}")
             adapter.ws_已连接 = False
 
 
@@ -97,9 +97,9 @@ async def _handle_message(adapter, 原始消息: str):
             await _handle_api(adapter, 数据)
 
     except json.JSONDecodeError:
-        logger.error(f"[HermesAdapter] 无效的 JSON 消息: {原始消息[:200]}", exc_info=True)
+        logger.error(f"[Hermes适配器] 无效的 JSON 消息: {原始消息[:200]}", exc_info=True)
     except Exception as e:
-        logger.error(f"[HermesAdapter] 处理消息失败: {e}", exc_info=True)
+        logger.error(f"[Hermes适配器] 处理消息失败: {e}", exc_info=True)
 
 
 async def _handle_api(adapter, 数据: dict):
@@ -120,7 +120,7 @@ async def _handle_api(adapter, 数据: dict):
         if message_id:
             adapter.记录hermes消息id(message_id)
             await adapter.emoji_like(int(message_id))
-            logger.debug(f"[HermesAdapter] API 请求发送消息记录 ID: {message_id}")
+            logger.debug(f"[Hermes适配器] API 请求发送消息记录 ID: {message_id}")
 
     响应 = build_api_response(结果, 回声字段)
     if 响应:
