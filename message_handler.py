@@ -111,19 +111,55 @@ def _check_approve_deny_permission(用户id: str, 允许用户: list) -> bool:
         return True
     return 用户id in 允许用户
 
+async def 构造onebot事件体(event: AiocqhttpMessageEvent, 已转发键: str) -> dict:
+    """
+    构造 OneBot v11 格式的消息事件体，多方法回退（支持群聊和私聊）。
+    """
 
-async def build_onebot_event(
-    event: AiocqhttpMessageEvent,
-    消息内容:str,
-    最大消息长度: int,
-    已转发键: str,
-) -> dict:
-    """
-    构造 OneBot v11 格式的消息事件体（支持群聊和私聊）。
-    """
+    # 方案1：优先使用原生 _raw_payload
+    try:
+        _raw_payload = event.message_obj.raw_message.get('_raw_payload')
+        if _raw_payload:
+            logger.debug("[Hermes适配器] 成功获取到 _raw_payload")
+            if event.get_extra(已转发键, False):
+                logger.warning(f"消息已转发过，将使用随机id：{event.get_message_str()[:50]}")
+                新载体 = _raw_payload.copy()
+                新载体['message_id'] = 消息id = int(time.time() * 1000) % 2147483647
+                return 新载体
+            return _raw_payload
+    except Exception as e:
+        logger.debug(f"[Hermes适配器] _raw_payload 读取失败，自动回退：{e}")
+
+    # 方案2：回退使用原始消息字典
+    try:
+        raw_message = dict(event.message_obj.raw_message)
+        logger.debug("[Hermes适配器] 成功转换 raw_message")
+        if event.get_extra(已转发键, False):
+            logger.warning(f"消息已转发过，将使用随机id：{event.get_message_str()[:50]}")
+            raw_message['message_id'] = 消息id = int(time.time() * 1000) % 2147483647
+        return raw_message
+    except Exception as e:
+        logger.debug(f"[Hermes适配器] 原始消息转换失败，自动回退：{e}")
+
+    # ====================== 方案3：最终兜底 手动构造完整事件 ======================
+    群号 = event.get_group_id()
+    用户id = event.get_sender_id()
+    用户名 = event.get_sender_name()
+    机器人id = event.get_self_id()
+    原始消息链 = event.get_messages()
+
+    # 过滤不兼容的嵌套消息链的Reply组件
+    新消息链 = [组件 for 组件 in 原始消息链 if not isinstance(组件, Reply)]
+    消息数组 = await event._parse_onebot_json(MessageChain(chain=新消息链))
+
+    # 重新插入干净的
+    if isinstance(原始消息链[0], Reply):
+        回复id = 原始消息链[0].id
+        消息数组.insert(0, {"type": "reply", "data": {"id": str(回复id)}})
+    # 生成消息id
     if event.get_extra(已转发键, False):
         消息id = int(time.time() * 1000) % 2147483647
-        logger.warning(f"消息已转发过，将使用随机id：{消息内容[:50]}")
+        logger.warning(f"消息已转发过，将使用随机id：{event.get_message_str()[:50]}")
     else:
         try:
             消息id = int(event.message_obj.message_id)
@@ -131,37 +167,16 @@ async def build_onebot_event(
             消息id = int(time.time() * 1000) % 2147483647
             logger.error(f"获取消息id失败，将使用随机id：{e}", exc_info=True)
 
-    _raw_payload = event.message_obj.raw_message.get('_raw_payload')
-    if _raw_payload:
-        logger.debug("[Hermes适配器] 成功获取到 _raw_payload")
-        _raw_payload['message_id'] = 消息id
-        return _raw_payload
-
-    群号 = event.get_group_id()
-    用户id = event.get_sender_id()
-    用户名 = event.get_sender_name()
-
-    if len(消息内容) > 最大消息长度:
-        消息内容 = 消息内容[:最大消息长度] + '...[已截断]'
-
-    原始消息链 = event.get_messages()
-    新消息链 = [
-        seg for seg in 原始消息链
-        if not isinstance(seg, Reply)
-    ]
-    json后 = await event._parse_onebot_json(MessageChain(chain=新消息链))
-    if isinstance(组件 := 原始消息链[0], Reply):
-        回复id = 组件.id
-        json后.insert(0, {"type": "reply", "data": {"id": str(回复id)}})
     # 基础事件体
     事件体 = {
         "time": int(time.time()),
-        "self_id": event.get_self_id(),
+        "self_id": int(机器人id),
         "post_type": "message",
         "message_id": 消息id,
         "user_id": int(用户id),
-        "message": json后,
-        "raw_message": event.message_obj.raw_message.get("raw_message", 消息内容),
+        "message": 消息数组,
+        'message_format': 'array',
+        "raw_message": event.message_obj.raw_message.get("raw_message", event.get_message_str()),
         "font": 0,
         "sender": {
             "user_id": int(用户id),
@@ -169,21 +184,22 @@ async def build_onebot_event(
             "card": 用户名,
         }
     }
-
-    # 根据消息类型添加不同字段
+    # 群聊 / 私聊 区分
     if 群号:
         事件体["message_type"] = "group"
         事件体["sub_type"] = "normal"
         事件体["group_id"] = int(群号)
         try:
-            事件体["sender"]["role"] =  event.message_obj.raw_message['sender']['role']
+            事件体["sender"]["role"] = event.message_obj.raw_message['sender']['role']
+            事件体['group_name'] = event.message_obj.raw_message['group_name']
         except Exception as e:
-            logger.warning(f"获取用户 {用户名} 群身份失败\n{e}")
+            logger.warning(f"获取用户 {用户名} 群身份失败：{e}")
     else:
         事件体["message_type"] = "private"
-        事件体["sub_type"] = "friend"
         if 用户名 == "临时会话":
             事件体["sub_type"] = "临时会话"
+        else:
+            事件体["sub_type"] = "friend"
 
     return 事件体
 

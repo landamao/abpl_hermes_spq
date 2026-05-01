@@ -1,5 +1,5 @@
 {
-    "connection": {
+    "连接配置": {
         "description": "连接配置",
         "type": "object",
         "hint": "Hermes Agent 和 OneBot 的连接设置",
@@ -10,7 +10,7 @@
                 "default": "ws://127.0.0.1:6701",
                 "hint": "Hermes Agent 的 WebSocket 服务器地址"
             },
-            "hermes_access_token": {
+            "hermes_token": {
                 "type": "string",
                 "description": "Hermes 访问令牌",
                 "default": "",
@@ -30,24 +30,24 @@
             }
         }
     },
-    "http_server": {
+    "http配置": {
         "description": "HTTP API 服务器",
         "type": "object",
         "hint": "用于让 Hermes 调用 AstrBot 指令的 HTTP 服务器",
         "items": {
-            "enable_http_server": {
+            "启用_http_服务器": {
                 "type": "bool",
                 "description": "启用 HTTP 服务器",
                 "default": true,
                 "hint": "是否启动 HTTP API 服务器供 Hermes 调用"
             },
-            "http_server_addr": {
+            "http_服务器_地址": {
                 "type": "string",
                 "description": "HTTP 服务器地址",
                 "default": "127.0.0.1:8567",
                 "hint": "HTTP API 服务器监听地址，格式: host:port（如 127.0.0.1:8567 或 0.0.0.0:8567）"
             },
-            "http_server_token": {
+            "http_服务器_token": {
                 "type": "string",
                 "description": "HTTP 服务器访问令牌",
                 "default": "",
@@ -55,57 +55,46 @@
             }
         }
     },
-    "message_filter": {
+    "过滤配置": {
         "description": "消息过滤",
         "type": "object",
         "hint": "控制哪些消息会被转发给 Hermes",
         "items": {
-            "trigger_keywords": {
+            "触发关键词": {
                 "type": "list",
                 "description": "触发关键词",
-                "default": ["纳西妲", "hermes", "Hermes"],
-                "hint": "消息中包含这些关键词时会转发给 Hermes",
-                "items": {
-                    "type": "string"
-                }
+                "default": [
+                    "纳西妲",
+                    "hermes",
+                    "Hermes"
+                ],
+                "hint": "消息中包含这些关键词时会转发给 Hermes"
             },
-            "trigger_at_bot": {
+            "触发艾特机器人": {
                 "type": "bool",
                 "description": "@机器人时触发",
-                "default": true,
+                "default": false,
                 "hint": "是否在 @机器人 时转发消息给 Hermes"
             },
-            "allowed_groups": {
+            "允许的群组": {
                 "type": "list",
                 "description": "允许的群组",
                 "default": [],
-                "hint": "留空表示所有群组都可以触发。填写群号列表。",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "留空表示所有群组都可以触发。填写群号列表。"
             },
-            "allowed_users": {
+            "允许的用户": {
                 "type": "list",
                 "description": "允许的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以触发。填写用户ID列表。",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "留空表示所有用户都可以触发。填写用户ID列表。"
             },
-            "forward_all_messages": {
+            "转发所有消息": {
                 "type": "bool",
                 "description": "转发所有消息",
                 "default": false,
                 "hint": "是否转发所有消息给 Hermes（慎用）"
             },
-            "max_message_length": {
-                "type": "int",
-                "description": "最大消息长度",
-                "default": 2000,
-                "hint": "超过此长度的消息会被截断"
-            },
-            "reply_to_hermes_trigger": {
+            "引用唤醒": {
                 "type": "bool",
                 "description": "引用Hermes消息直接唤醒",
                 "default": true,
@@ -113,101 +102,92 @@
             }
         }
     },
-    "conflict_mode": {
+    "冲突配置": {
         "description": "冲突处理",
         "type": "object",
         "hint": "当 LLM 和 Hermes 同时被唤醒时的处理方式",
         "items": {
-            "llm_hermes_conflict_mode": {
+            "同时唤醒处理方式": {
                 "type": "string",
                 "description": "冲突处理模式",
-                "default": "hermes_only",
-                "options": ["hermes_only", "both", "llm_only"],
-                "hint": "hermes_only=只用Hermes；both=都处理；llm_only=优先用本地LLM"
+                "default": "只用Hermes",
+                "options": ["只用Hermes", "不使用Hermes", "都处理"],
+                "hint": "都处理：不拦截AstrBot的唤醒，并转发给Hermes"
             }
         }
     },
-    "approve_deny": {
+    "approve配置": {
         "description": "授权命令",
         "type": "object",
         "hint": "配置 /approve 和 /deny 命令的权限",
         "items": {
-            "approve_enabled": {
+            "approve_启用": {
                 "type": "bool",
                 "description": "启用 /approve",
                 "default": true,
                 "hint": "是否允许使用 /approve 命令"
             },
-            "approve_users": {
+            "approve_允许用户": {
                 "type": "list",
                 "description": "允许 /approve 的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以使用",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "留空表示所有用户都可以使用"
             },
-            "deny_enabled": {
+            "deny_启用": {
                 "type": "bool",
                 "description": "启用 /deny",
                 "default": true,
                 "hint": "是否允许使用 /deny 命令"
             },
-            "deny_users": {
+            "deny_允许用户": {
                 "type": "list",
                 "description": "允许 /deny 的用户",
                 "default": [],
-                "hint": "留空表示所有用户都可以使用",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "留空表示所有用户都可以使用"
             }
         }
     },
-    "command_filter": {
+    "指令配置": {
         "description": "指令过滤",
         "type": "object",
         "hint": "控制哪些 AstrBot 指令可以通过 API 执行",
         "items": {
-            "command_whitelist": {
+            "指令白名单": {
                 "type": "list",
                 "description": "指令白名单",
                 "default": [],
-                "hint": "留空表示不限制",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "留空表示不限制"
             },
-            "command_blacklist": {
+            "指令黑名单": {
                 "type": "list",
                 "description": "指令黑名单",
                 "default": ["重启", "关机", "更新"],
-                "hint": "这些指令不能通过 API 执行",
-                "items": {
-                    "type": "string"
-                }
+                "hint": "这些指令不能通过 API 执行"
             }
         }
     },
-    "emoji_like": {
+    "emoji配置": {
         "description": "表情回应",
         "type": "object",
-        "hint": "Hermes 发送消息后自动贴表情回应",
+        "hint": "自动贴表情回应功能",
         "items": {
-            "enabled": {
+            "回复消息贴表情": {
                 "type": "bool",
-                "description": "启用表情回应",
-                "default": false,
-                "hint": "Hermes 发送消息后自动给消息贴表情"
+                "description": "Hermes回复消息贴表情",
+                "default": true,
+                "hint": "Hermes 发送回复消息后自动给回复贴表情"
             },
-            "emoji_ids": {
-                "type": "list",
-                "description": "表情ID列表",
-                "default": [12, 66, 76, 108, 122, 124, 144, 147, 175, 180, 192, 201, 282, 297],
-                "hint": "随机从这些表情ID中选一个贴上去",
-                "items": {
-                    "type": "int"
-                }
+            "转发时贴表情": {
+                "type": "bool",
+                "description": "转发消息时贴表情",
+                "default": true,
+                "hint": "用户消息触发唤醒并转发给 Hermes 时，给用户的原始消息贴表情"
+            },
+            "贴表情列表": {
+                "type": "text",
+                "description": "表情ID列表，用逗号分割每个表情，兼容中文逗号",
+                "default": "12, 66, 76, 108, 122, 124, 144, 147, 180, 192, 201, 282, 297",
+                "hint": "随机从这些表情ID中选一个贴上去"
             }
         }
     }

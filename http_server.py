@@ -16,7 +16,6 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 
 from .command_cache import check_command_allowed, resolve_command, categorize_commands
 
-
 def verify_auth(请求: web.Request, token: str) -> bool:
     """验证请求认证"""
     if not token:
@@ -41,7 +40,7 @@ async def handle_health(adapter) -> web.Response:
 
 async def handle_stats(请求: web.Request, adapter) -> web.Response:
     """统计信息"""
-    if not verify_auth(请求, adapter.http_服务器_令牌):
+    if not verify_auth(请求, adapter.http_服务器_token):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     return web.json_response({
         'stats': adapter.统计数据,
@@ -53,7 +52,7 @@ async def handle_stats(请求: web.Request, adapter) -> web.Response:
 
 async def handle_list_commands(请求: web.Request, adapter) -> web.Response:
     """列出可执行的指令"""
-    if not verify_auth(请求, adapter.http_服务器_令牌):
+    if not verify_auth(请求, adapter.http_服务器_token):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     指令集合 = {}
     for 指令名称, 处理器信息 in adapter.处理器缓存.items():
@@ -71,7 +70,7 @@ async def handle_list_commands(请求: web.Request, adapter) -> web.Response:
 
 async def handle_hermes_commands(请求: web.Request, adapter) -> web.Response:
     """为 Hermes 提供指令列表（带分类）"""
-    if not verify_auth(请求, adapter.http_服务器_令牌):
+    if not verify_auth(请求, adapter.http_服务器_token):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     if not adapter.处理器缓存:
         adapter.rebuild_cache()
@@ -90,7 +89,7 @@ async def handle_hermes_commands(请求: web.Request, adapter) -> web.Response:
 
 async def handle_command_detail(请求: web.Request, adapter) -> web.Response:
     """获取单个指令的详细信息"""
-    if not verify_auth(请求, adapter.http_服务器_令牌):
+    if not verify_auth(请求, adapter.http_服务器_token):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     指令名称 = 请求.match_info.get('command_name', '')
     if not adapter.处理器缓存:
@@ -114,7 +113,7 @@ async def handle_command_detail(请求: web.Request, adapter) -> web.Response:
 
 async def handle_execute(请求: web.Request, adapter) -> web.Response:
     """执行 AstrBot 指令"""
-    if not verify_auth(请求, adapter.http_服务器_令牌):
+    if not verify_auth(请求, adapter.http_服务器_token):
         return web.json_response({'error': 'Unauthorized'}, status=401)
     try:
         数据 = await 请求.json()
@@ -280,30 +279,30 @@ async def _send_result_to_group(adapter, 群号: int, 执行结果, 已发消息
             json数据 = 组件.data if hasattr(组件, 'data') else {}
             if json数据:
                 onebot消息内容 = [{"type": "json", "data": {"data": json.dumps(json数据)}}]
-                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容, adapter.onebot_api_token)
+                result = await send_cq(adapter.会话, adapter.onebot_api_url, 群号, onebot消息内容, adapter.onebot_api_token)
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)
-                if message_id:
-                    await adapter.emoji_like(int(message_id))
+                if adapter.回复消息贴表情:
+                    await adapter.贴表情(message_id)
                 logger.debug(f"[Hermes适配器] 已通过 OneBot 发送 JSON, message_id={message_id}")
         elif hasattr(组件, 'text') and 组件.text:
-            result = await send_text(adapter.会话, adapter.onebot_api_地址, 群号, 组件.text, adapter.onebot_api_token)
+            result = await send_text(adapter.会话, adapter.onebot_api_url, 群号, 组件.text, adapter.onebot_api_token)
             已发消息.append(result)
             message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
             adapter.记录hermes消息id(message_id)
-            if message_id:
-                await adapter.emoji_like(int(message_id))
+            if adapter.回复消息贴表情:
+                await adapter.贴表情(message_id)
             logger.debug(f"[Hermes适配器] 已通过 OneBot 发送文本, message_id={message_id}")
         elif isinstance(组件, Image):
             if hasattr(组件, 'url') and 组件.url:
                 onebot消息内容 = [{"type": "image", "data": {"file": 组件.url}}]
-                result = await send_cq(adapter.会话, adapter.onebot_api_地址, 群号, onebot消息内容, adapter.onebot_api_token)
+                result = await send_cq(adapter.会话, adapter.onebot_api_url, 群号, onebot消息内容, adapter.onebot_api_token)
                 已发消息.append(result)
                 message_id = result.get("data", {}).get("message_id") if isinstance(result, dict) else None
                 adapter.记录hermes消息id(message_id)
-                if message_id:
-                    await adapter.emoji_like(int(message_id))
+                if adapter.回复消息贴表情:
+                    await adapter.贴表情(message_id)
                 logger.debug(f"[Hermes适配器] 已通过 OneBot 发送图片, message_id={message_id}")
 
 

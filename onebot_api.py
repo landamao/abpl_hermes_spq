@@ -113,7 +113,7 @@ async def upload_private_file(session: aiohttp.ClientSession, onebot_url: str, �
         return {"error": str(e)}
 
 
-async def set_msg_emoji_like(session: aiohttp.ClientSession, onebot_url: str, message_id: int, emoji_id: int = 12, token: str = "") -> dict:
+async def set_msg_emoji_like(session: aiohttp.ClientSession, onebot_url: str, message_id: str|int, emoji_id: str|int = 12, token: str = "") -> dict:
     """通过 OneBot API 给消息贴表情回应"""
     url = f"{onebot_url}/set_msg_emoji_like"
     payload = {

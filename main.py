@@ -15,6 +15,8 @@ Hermes Agent 适配器插件 - WebSocket 版本
 import asyncio
 import time
 import aiohttp
+import os
+import glob
 from typing import Dict
 from astrbot.api.event import filter
 from astrbot.api.all import (
@@ -23,79 +25,94 @@ from astrbot.api.all import (
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 from .command_cache import build_command_cache, build_all_commands_set, check_command_allowed, resolve_command, categorize_commands
-from .message_handler import should_forward, build_onebot_event
+from .message_handler import should_forward, 构造onebot事件体
 from .http_server import start_http_server, stop_http_server, execute_command
 from .ws_client import ws_loop, ws_send
-from .aiocqhttp_patch import patch_aiocqhttp
-
+import random
+from .onebot_api import set_msg_emoji_like
 class Hermes适配器(Star):
     """Hermes Agent 适配器 - WebSocket 版本"""
 
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-        patch_aiocqhttp()
         def 清理列表(列表):
             return [i.strip() for i in 列表 if i.strip()]
 
         # ========== 配置项 ==========
         # 读取各分类配置
-        连接配置 = config.get('connection', {})
-        http配置 = config.get('http_server', {})
-        过滤配置 = config.get('message_filter', {})
-        冲突配置 = config.get('conflict_mode', {})
-        approve配置 = config.get('approve_deny', {})
-        指令配置 = config.get('command_filter', {})
+        连接配置:dict = config['连接配置']
+        http配置:dict = config['http配置']
+        过滤配置:dict = config['过滤配置']
+        冲突配置:dict = config['冲突配置']
+        approve配置:dict = config['approve配置']
+        指令配置:dict = config['指令配置']
+        贴表情配置 = config['emoji配置']
 
         # WebSocket 连接到 Hermes
-        self.hermes_ws_链接 = 连接配置.get('hermes_ws_url', 'ws://127.0.0.1:6701')
-        self.hermes_访问令牌 = 连接配置.get('hermes_access_token', '')
+        self.hermes_ws_url = 连接配置['hermes_ws_url']
+        self.hermes_token = 连接配置['hermes_token']
 
         # OneBot API 地址
-        self.onebot_api_地址 = 连接配置.get('onebot_api_url', 'http://127.0.0.1:5700')
-        self.onebot_api_token = 连接配置.get('onebot_api_token', '')
+        self.onebot_api_url = 连接配置['onebot_api_url']
+        self.onebot_api_token = 连接配置['onebot_api_token']
 
         # HTTP API 服务器
-        self.启用_http_服务器 = http配置.get('enable_http_server', True)
-        self.http_服务器_地址 = http配置.get('http_server_addr', '0.0.0.0:8567')
+        self.启用_http_服务器 = http配置['启用_http_服务器']
+        self.http_服务器_地址 = http配置['http_服务器_地址']
         # 解析 host:port
-        if ':' in str(self.http_服务器_地址):
+        try:
             parts = str(self.http_服务器_地址).rsplit(':', 1)
             self.http_服务器_主机 = parts[0]
             self.http_服务器_端口 = int(parts[1])
-        else:
-            self.http_服务器_主机 = '0.0.0.0'
+        except Exception as e:
+            self.http_服务器_主机 = '127.0.0.1'
             self.http_服务器_端口 = int(self.http_服务器_地址)
-        self.http_服务器_令牌 = http配置.get('http_server_token', '')
+            logger.error(f"解析 HTTP 服务器地址失败，地址原文：{self.http_服务器_地址}\n{str(e)}", exc_info=True)
+            logger.warning(f"使用默认值：{self.http_服务器_主机}:{self.http_服务器_端口}")
+        self.http_服务器_token = http配置['http_服务器_token']
 
         # 消息过滤配置
-        self.触发关键词 = 过滤配置.get('trigger_keywords', ['纳西妲', 'hermes', 'Hermes'])
-        self.触发艾特机器人 = 过滤配置.get('trigger_at_bot', True)
-        self.允许的群组 = 清理列表(过滤配置.get('allowed_groups', []))
-        self.允许的用户 = 清理列表(过滤配置.get('allowed_users', []))
-        self.转发所有消息 = 过滤配置.get('forward_all_messages', False)
-        self.最大消息长度 = 过滤配置.get('max_message_length', 2000)
-        self.引用唤醒 = 过滤配置.get('reply_to_hermes_trigger', True)
+        self.触发关键词 = 过滤配置['触发关键词']
+        self.触发艾特机器人 = 过滤配置['触发艾特机器人']
+        self.允许的群组 = 清理列表(过滤配置['允许的群组'])
+        self.允许的用户 = 清理列表(过滤配置['允许的用户'])
+        self.转发所有消息 = 过滤配置['转发所有消息']
+        self.引用唤醒 = 过滤配置['引用唤醒']
 
         # 冲突处理方式
-        self.同时唤醒处理方式 = 冲突配置.get('llm_hermes_conflict_mode', 'hermes_only')
+        self.同时唤醒处理方式 = 冲突配置['同时唤醒处理方式']
 
         # /approve 授权配置
-        self.approve_启用 = approve配置.get('approve_enabled', True)
-        self.approve_允许用户 = 清理列表(approve配置.get('approve_users', []))
+        self.approve_启用 = approve配置['approve_启用']
+        self.approve_允许用户 = 清理列表(approve配置['approve_允许用户'])
 
         # /deny 授权配置
-        self.deny_启用 = approve配置.get('deny_enabled', True)
-        self.deny_允许用户 = 清理列表(approve配置.get('deny_users', []))
+        self.deny_启用 = approve配置['deny_启用']
+        self.deny_允许用户 = 清理列表(approve配置['deny_允许用户'])
 
         # 指令执行配置
-        self.指令白名单 = 清理列表(指令配置.get('command_whitelist', []))
-        self.指令黑名单 = 指令配置.get('command_blacklist', ['重启', '关机', '更新'])
+        self.指令白名单 = 清理列表(指令配置['指令白名单'])
+        self.指令黑名单 = 指令配置['指令黑名单']
 
         # 表情回应配置
-        emoji配置 = config.get('emoji_like', {})
-        self.emoji_like_启用 = emoji配置.get('enabled', False)
-        self.emoji_like_id列表 = emoji配置.get('emoji_ids', [12, 66, 76, 108, 122, 124, 144, 147, 175, 180, 192, 201, 282, 297])
+        self.回复消息贴表情 = 贴表情配置['回复消息贴表情']
+        self.转发时贴表情 = 贴表情配置['转发时贴表情']
+        贴表情列表: str = 贴表情配置['贴表情列表']
+        try:
+            # 清洗字符串并转为整数元组
+            清洗后 = (贴表情列表.replace('\n', '').replace('\r', '').
+                    replace(' ', '').replace('\t', '').replace('，',','))
+            分割后 = [项 for 项 in 清洗后.split(',') if 项]
+            self.贴表情列表 = tuple(map(int, 分割后))
+            config['emoji配置']['贴表情列表'] = '，'.join(map(str, self.贴表情列表))
+            config.save_config()
+        except Exception as e:
+            # 打印错误日志 + 使用默认值
+            self.贴表情列表 = (12, 66, 76, 108, 122, 124, 144, 147, 175, 180, 192, 201, 282, 297)
+            logger.error(
+                f"解析 emoji ID 配置失败，已自动使用默认ID列表：{'，'.join(map(str, self.贴表情列表))}\n{str(e)}",
+                exc_info=True)
 
         # ========== 内部状态 ==========
         self.http_运行器 = None
@@ -118,7 +135,7 @@ class Hermes适配器(Star):
         self.私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
         # 记录 Hermes 发送的消息 ID（用于引用唤醒）
         self.hermes_消息id集合: set = set()
-        self.hermes_消息id_最大数量 = 1000
+        self.hermes_消息id_最大数量 = 100000
 
         self.统计数据 = {
             'messages_forwarded': 0,
@@ -131,20 +148,20 @@ class Hermes适配器(Star):
 
         logger.info("[Hermes适配器] 插件已加载 (WebSocket 版本)")
         logger.info("[Hermes适配器] ═══ 连接配置 ═══")
-        logger.info(f"[Hermes适配器]   Hermes WebSocket: {self.hermes_ws_链接}")
-        logger.info(f"[Hermes适配器]   OneBot API: {self.onebot_api_地址}")
-        logger.info(f"[Hermes适配器]   OneBot API 令牌: {self.onebot_api_token}")
+        logger.info(f"[Hermes适配器]   Hermes WebSocket: {self.hermes_ws_url}")
+        logger.info(f"[Hermes适配器]   Hermes WebSocket token: {self.hermes_token}")
+        logger.info(f"[Hermes适配器]   OneBot API: {self.onebot_api_url}")
+        logger.info(f"[Hermes适配器]   OneBot API token: {self.onebot_api_token}")
         logger.info("[Hermes适配器] ═══ HTTP 服务器 ═══")
         logger.info(f"[Hermes适配器]   启用: {'是' if self.启用_http_服务器 else '否'}")
         logger.info(f"[Hermes适配器]   地址: {self.http_服务器_地址}")
-        logger.info(f"[Hermes适配器]   令牌: {'已设置' if self.http_服务器_令牌 else '无'}")
+        logger.info(f"[Hermes适配器]   token: {'已设置' if self.http_服务器_token else '无'}")
         logger.info("[Hermes适配器] ═══ 消息过滤 ═══")
         logger.info(f"[Hermes适配器]   触发关键词: {self.触发关键词}")
         logger.info(f"[Hermes适配器]   @机器人触发: {'是' if self.触发艾特机器人 else '否'}")
         logger.info(f"[Hermes适配器]   允许的群组: {self.允许的群组 or '全部'}")
         logger.info(f"[Hermes适配器]   允许的用户: {self.允许的用户 or '全部'}")
         logger.info(f"[Hermes适配器]   转发所有消息: {'是' if self.转发所有消息 else '否'}")
-        logger.info(f"[Hermes适配器]   最大消息长度: {self.最大消息长度}")
         logger.info(f"[Hermes适配器]   引用Hermes消息唤醒: {'是' if self.引用唤醒 else '否'}")
         logger.info("[Hermes适配器] ═══ 冲突处理 ═══")
         logger.info(f"[Hermes适配器]   模式: {self.同时唤醒处理方式}")
@@ -155,16 +172,14 @@ class Hermes适配器(Star):
         logger.info(f"[Hermes适配器]   白名单: {self.指令白名单 or '无限制'}")
         logger.info(f"[Hermes适配器]   黑名单: {self.指令黑名单}")
         logger.info("[Hermes适配器] ═══ 表情回应 ═══")
-        logger.info(f"[Hermes适配器]   启用: {'是' if self.emoji_like_启用 else '否'}")
-        logger.info(f"[Hermes适配器]   表情ID: {self.emoji_like_id列表}")
-        logger.debug("[Hermes适配器]   最后修改：2026-4-29 7:57")
+        logger.info(f"[Hermes适配器]   Hermes回复贴表情: {'是' if self.回复消息贴表情 else '否'}")
+        logger.info(f"[Hermes适配器]   转发时贴表情: {'是' if self.转发时贴表情 else '否'}")
+        logger.info(f"[Hermes适配器]   表情ID: {'，'.join(map(str, self.贴表情列表))}")
 
     # ========== 生命周期 ==========
 
     async def initialize(self):
         """异步初始化"""
-        import os
-        import glob
         
         self.会话 = aiohttp.ClientSession()
         self.rebuild_cache()
@@ -262,27 +277,30 @@ class Hermes适配器(Star):
         if not self._是否唤醒处理(event):
             return
 
-        onebot事件体 = await build_onebot_event(
-            event, 消息内容, self.最大消息长度, self.已转发键
+        onebot事件体 = await 构造onebot事件体(
+            event, self.已转发键
         )
 
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
         self.统计数据['messages_forwarded'] += 1
+        # 转发成功后给原始消息贴表情
+        if self.转发时贴表情:
+            await self.贴表情(event.message_obj.message_id)
         来源 = "群聊" if 群号 else "私聊"
         logger.info(f"[Hermes适配器] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
 
     def _是否唤醒处理(self, event: AiocqhttpMessageEvent) -> bool:
         """判断 LLM 和 Hermes 同时唤醒时的处理方式"""
-        if self.同时唤醒处理方式 == 'hermes_only':
+        if self.同时唤醒处理方式 == '只用Hermes':
             logger.info("[Hermes适配器] 终止事件，使用hermes")
             event.stop_event()
             return True
-        elif self.同时唤醒处理方式 == 'both':
+        elif self.同时唤醒处理方式 == '都处理':
             if event.is_at_or_wake_command:
                 logger.info("[Hermes适配器] 已同时唤醒")
             return True
-        elif self.同时唤醒处理方式 == 'llm_only':
+        elif self.同时唤醒处理方式 == '不使用Hermes':
             if event.is_at_or_wake_command:
                 logger.info("[Hermes适配器] llm已唤醒，不使用hermes")
                 return False
@@ -309,18 +327,16 @@ class Hermes适配器(Star):
             self.hermes_消息id集合 = set(list(self.hermes_消息id集合)[-保留数量:])
             # logger.debug(f"[Hermes适配器] 清理 hermes 消息 ID 缓存，保留 {保留数量} 条")
 
-    async def emoji_like(self, message_id: int):
+    async def 贴表情(self, 消息id: str | int):
         """给消息贴表情回应（异步，不阻塞）"""
-        if not self.emoji_like_启用 or not message_id:
+        if not 消息id:
             return
         try:
-            import random
-            from .onebot_api import set_msg_emoji_like
-            emoji_id = random.choice(self.emoji_like_id列表)
+            表情id = random.choice(self.贴表情列表)
             asyncio.create_task(set_msg_emoji_like(
-                self.会话, self.onebot_api_地址, message_id, emoji_id, self.onebot_api_token
+                self.会话, self.onebot_api_url, 消息id, 表情id, self.onebot_api_token
             ))
-            # logger.debug(f"[Hermes适配器] 已发起表情回应: message_id={message_id}, emoji_id={emoji_id}")
+            # logger.debug(f"[Hermes适配器] 已发起表情回应: 消息id={消息id}, 表情id={表情id}")
         except Exception as e:
             logger.error(f"[Hermes适配器] 表情回应发起失败: {e}")
 
@@ -330,7 +346,7 @@ class Hermes适配器(Star):
     async def hermes_cmd(self, event: AiocqhttpMessageEvent):
         pass
 
-    @hermes_cmd.command("status")
+    @hermes_cmd.command("status", alias={"状态"})
     async def cmd_status(self, event: AiocqhttpMessageEvent):
         """查看 Hermes 适配器状态"""
         运行耗时 = time.time() - self.统计数据['start_time']
@@ -350,7 +366,7 @@ class Hermes适配器(Star):
             f'错误次数: {self.统计数据["errors"]}次',
             f'重连次数: {self.统计数据["ws_reconnects"]}次',
             '',
-            f'Hermes WebSocket: {self.hermes_ws_链接}',
+            f'Hermes WebSocket: {self.hermes_ws_url}',
             f'HTTP 服务器: http://{self.http_服务器_地址}',
             f'已缓存群列表: {", ".join(self.群组事件.keys()) or "无"}',
         ]
@@ -427,8 +443,8 @@ class Hermes适配器(Star):
         if not self.ws_已连接:
             return "Hermes Agent 未连接，请稍后再试"
 
-        onebot事件体 = await build_onebot_event(
-            event, event.get_message_str(), self.最大消息长度, self.已转发键
+        onebot事件体 = await 构造onebot事件体(
+            event, self.已转发键
         )
         await ws_send(self, onebot事件体)
         event.set_extra(self.已转发键, True)
@@ -462,7 +478,7 @@ class Hermes适配器(Star):
         ])
 
     @filter.llm_tool("hermes_list_commands")
-    async def hermes_list_commands(self, _: AiocqhttpMessageEvent, category: str = "") -> str:
+    async def hermes_list_commands(self, _, category: str = "") -> str:
         """
         列出所有可通过 Hermes 执行的 AstrBot 指令。
 
