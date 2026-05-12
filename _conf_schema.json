@@ -111,7 +111,11 @@
                 "type": "string",
                 "description": "冲突处理模式",
                 "default": "只用Hermes",
-                "options": ["只用Hermes", "不使用Hermes", "都处理"],
+                "options": [
+                    "只用Hermes",
+                    "不使用Hermes",
+                    "都处理"
+                ],
                 "hint": "都处理：不拦截AstrBot的唤醒，并转发给Hermes"
             }
         }
@@ -144,6 +148,12 @@
                 "description": "允许 /deny 的用户",
                 "default": [],
                 "hint": "留空表示所有用户都可以使用"
+            },
+            "approve_拒绝提示": {
+                "type": "text",
+                "description": "/approve 无权限拒绝提示",
+                "default": "",
+                "hint": "无权限用户使用 /approve 时发送的提示消息，留空表示不发送"
             }
         }
     },
@@ -161,7 +171,11 @@
             "指令黑名单": {
                 "type": "list",
                 "description": "指令黑名单",
-                "default": ["重启", "关机", "更新"],
+                "default": [
+                    "重启",
+                    "关机",
+                    "更新"
+                ],
                 "hint": "这些指令不能通过 API 执行"
             }
         }
@@ -186,8 +200,27 @@
             "贴表情列表": {
                 "type": "text",
                 "description": "表情ID列表，用逗号分割每个表情，兼容中文逗号",
-                "default": "12, 66, 76, 108, 122, 124, 144, 147, 180, 192, 201, 282, 297",
+                "default": "66，76，124，144，147，192，201，282，297",
                 "hint": "随机从这些表情ID中选一个贴上去"
+            }
+        }
+    },
+    "安全配置": {
+        "description": "敏感字符过滤",
+        "type": "object",
+        "hint": "Hermes 回复到 QQ 的消息中敏感字符的过滤替换",
+        "items": {
+            "敏感字符列表": {
+                "type": "list",
+                "description": "敏感字符列表",
+                "default": [],
+                "hint": "消息中包含这些字符时会被替换"
+            },
+            "替换目标": {
+                "type": "text",
+                "description": "替换内容",
+                "default": "***",
+                "hint": "敏感字符会被替换为此内容，留空表示直接删除"
             }
         }
     }
