@@ -71,6 +71,9 @@ class Hermes适配器(Star):
         self.approve无权限提示: str = 授权配置['approve无权限提示']
         self.允许其他指令的用户: list[str] = 解析all(清理列表(授权配置['允许其他指令的用户']))
         self.开启中文映射: bool = 授权配置['开启中文映射']
+        if not 授权配置['自定义指令前缀'].strip():
+            授权配置['自定义指令前缀'] = '/'
+        self.自定义指令前缀:str = 授权配置['自定义指令前缀']
 
         self.转发时贴表情: bool = config['emoji配置']['转发时贴表情']
         self.过滤llm结果: bool = config['脱敏配置']['过滤llm结果']
@@ -181,26 +184,29 @@ class Hermes适配器(Star):
         raw: dict = dict(event.message_obj.raw_message)
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
-        if not 群号:
+        if 群号:
+            if not all判断(self.允许的群组, 群号):
+                return False, raw
+            if not all判断(self.允许的用户, qq):
+                return False, raw
+        else:
             if not all判断(self.私聊允许的用户, qq):
                 return False, raw
-            if  self.私聊转发所有消息:
+            if self.私聊转发所有消息:
                 return True, raw
-            return False, raw
-        if not all判断(self.允许的群组, 群号):
-            return False, raw
-        if not all判断(self.允许的用户, qq):
-            return False, raw
         if self.引用唤醒 and (message_id := 引用ID(raw)) and MessageId.has(message_id):
             return True, raw
         if self.艾特机器人触发 and event.get_self_id() in 艾特ID(raw):
             return True, raw
         text = 纯文本(raw)
-        if text in 授权命令映射:
-            text = 授权命令映射[text]
-        if text.startswith("/approve"):
+        指令文本 = ""
+        if text.startswith(self.自定义指令前缀):
+            指令文本 =  "/" + text[len(self.自定义指令前缀):]
+        if self.开启中文映射 and 指令文本 in 授权命令映射:
+            指令文本 = 授权命令映射[指令文本]
+        if 指令文本.startswith(f"/approve"):
             if all判断(self.允许approve的用户, qq):
-                return True, 构造文本NapCat事件体(event, text)
+                return True, 构造文本NapCat事件体(event, 指令文本)
             else:
                 if self.approve无权限提示:
                     await self.发送文本给NapCat(event, self.approve无权限提示)
@@ -209,13 +215,13 @@ class Hermes适配器(Star):
                 elif self.无权限处理方式 == "发送自定义拒绝信息给Hermes":
                     return True, 构造文本NapCat事件体(event, self.自定义拒绝信息)
                 return False, raw
-        elif text.startswith("/deny"):
+        elif 指令文本.startswith(f"/deny"):
             if all判断(self.允许deny的用户, qq):
-                return True, 构造文本NapCat事件体(event, text)
+                return True, 构造文本NapCat事件体(event, 指令文本)
             return False, raw
-        elif text.startswith("/"):
+        elif 指令文本.startswith("/"):
             if all判断(self.允许其他指令的用户, qq):
-                return True, 构造文本NapCat事件体(event, text)
+                return True, 构造文本NapCat事件体(event, 指令文本)
             return False, raw
         if any(i in text for i in self.触发关键词):
             return True, raw
@@ -338,6 +344,8 @@ class Hermes适配器(Star):
             await self.反向HTTP.start()
         await self.ws开始()
         await asyncio.sleep(0.1)
+        if self.消息发送方式 == "框架已有的WebSocket":
+            logger.warning("[Hermes适配器] 当前发送消息方式为“框架已有的WebSocket”，请在qq发送任意消息以激活")
         logger.debug("[Hermes适配器] initialize完成")
         logger.info("[Hermes适配器] 初始化完成")
 

@@ -155,7 +155,7 @@
             "允许deny的用户": {
                 "type": "list",
                 "description": "允许 /deny 的用户",
-                "default": [],
+                "default": ["admin"],
                 "hint": "填写qq号，all代表所有，admin代表框架管理员"
             },
             "无权限处理方式": {
@@ -190,6 +190,12 @@
                 "description": "开启授权命令中文映射",
                 "default": true,
                 "hint": "开启后，可以更方便的使用中文授权，也同时兼容英文授权方式，映射规则：/同意 → /approve；/一直同意 → /approve always；/会话同意 → /approve session；/拒绝 → /deny"
+            },
+            "自定义指令前缀": {
+                "type": "string",
+                "description": "自定义指令前缀",
+                "default": "/",
+                "hint": "留空代表使用默认`/`，自定义Hermes的指令前缀，可避免与框架冲突"
             }
         }
     },
