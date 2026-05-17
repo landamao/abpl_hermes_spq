@@ -1,164 +1,104 @@
-"""
-Hermes Agent 适配器插件 - WebSocket 版本
-
-实现 AstrBot 与 Hermes Agent 的双向通信：
-- AstrBot → Hermes: 通过 WebSocket 连接到 Hermes 反向 WS 服务器
-- Hermes → AstrBot: 接收 Hermes 指令请求，通过 HTTP API 执行
-
-模块结构:
-- onebot_client.py   : OneBotClient - OneBot HTTP API 客户端
-- emoji_manager.py   : EmojiManager - 表情回应与消息 ID 追踪
-- message_handler.py : 消息管理器 - 消息过滤与事件体构造
-- command_manager.py : CommandManager - 指令缓存/执行/LLM 工具
-- http_server.py     : HttpServer - HTTP API 服务器
-- ws_client.py       : WebSocketClient - WebSocket 连接管理
-"""
-import asyncio
-import time
-import os
-import glob
-import json
-import aiohttp
-from typing import Dict
+import sys, json, asyncio, websockets
 from astrbot.api.event import filter
-from astrbot.api.all import Star, Context, AstrBotConfig, logger
+from astrbot.api.provider import LLMResponse
+from astrbot.api.all import Star, Context, AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-
-from .onebot_client import OneBotClient
-from .emoji_manager import EmojiManager
-from .message_handler import 消息管理器
-from .command_manager import CommandManager
-from .http_server import HttpServer
-from .ws_client import WebSocketClient
-
+from . import Tools
+from .logger import *
+from .napcat_send import NapCatSend
 
 class Hermes适配器(Star):
-    """Hermes Agent 适配器 - WebSocket 版本"""
 
-    def __init__(self, context: Context, config: AstrBotConfig):
+    def __init__(self, context: Context, config: AstrBotConfig) -> None:
+        debug("[Hermes适配器] __init__完成")
         super().__init__(context)
-        self.config = config
+        self.config: AstrBotConfig = config
+        self.event: list[AiocqhttpMessageEvent|None] = [None]  # 使用列表共享实时变化的event对象
 
-        # ========== 解析配置 ==========
-        self._解析配置(config)
-
-        # ========== 初始化组件 ==========
-        self.会话 = None
-        self.onebot_client: OneBotClient = None
-        self.emoji_manager: EmojiManager = EmojiManager(config)
-        self.消息管理器 = 消息管理器(config, self.emoji_manager)
-        self.cmd_manager = CommandManager(self)
-        self.http_server = HttpServer(self)
-        self.ws_client: WebSocketClient = None
-
-        # ========== 运行时状态 ==========
-        self.群组事件: Dict[str, AiocqhttpMessageEvent] = {}
-        self.私聊事件: Dict[str, AiocqhttpMessageEvent] = {}
-        self.统计数据 = {
-            'messages_forwarded': 0,
-            'commands_executed': 0,
-            'errors': 0,
-            'ws_reconnects': 0,
-            'start_time': time.time()
-        }
-
-    # ========== 配置解析 ==========
-
-    def _解析配置(self, config):
-        """解析所有配置项"""
-        def 清理列表(lst):
-            return [i.strip() for i in lst if i.strip()]
-
-        # 连接配置
+        # ========== 连接配置 ==========
         连接配置: dict = config['连接配置']
-        self.hermes_ws_url = 连接配置['hermes_ws_url']
-        self.hermes_token = 连接配置['hermes_token']
-        self.onebot_api_url = 连接配置['onebot_api_url']
-        self.onebot_api_token = 连接配置['onebot_api_token']
-
-        # HTTP 配置
-        http配置: dict = config['http配置']
-        self.启用_http_服务器 = http配置['启用_http_服务器']
-        self.http_服务器_地址 = http配置['http_服务器_地址']
-        self.http_服务器_token = http配置['http_服务器_token']
+        self.hermes_ws_url: str = 连接配置['hermes_ws_url'].strip().rstrip('/')
+        self.hermes_token: str = 连接配置['hermes_token'].strip()
+        self.消息发送方式: str = 连接配置['消息发送方式'].strip()
+        if self.消息发送方式 == "NapCat Http 服务器":
+            self.开启反向HTTP: bool = False
+        else:
+            self.开启反向HTTP: bool = 连接配置['开启反向HTTP']
+        if self.开启反向HTTP:
+            self.反向HTTP地址: str = 连接配置['反向HTTP地址'].strip()
+            self.反向HTTP令牌: str = 连接配置['反向HTTP令牌'].strip()
+        else:
+            self.反向HTTP地址: str = ""
+            self.反向HTTP令牌: str = ""
 
         try:
-            parts = str(self.http_服务器_地址).rsplit(':', 1)
-            self.http_服务器_主机 = parts[0]
-            self.http_服务器_端口 = int(parts[1])
+            管理员列表 = context.get_config()["admins_id"]
         except Exception as e:
-            self.http_服务器_主机 = '127.0.0.1'
-            self.http_服务器_端口 = int(self.http_服务器_地址)
-            logger.error(f"解析 HTTP 服务器地址失败，地址原文：{self.http_服务器_地址}\n{e}", exc_info=True)
-            logger.warning(f"使用默认值：{self.http_服务器_主机}:{self.http_服务器_端口}")
+            error("[Hermes适配器] 获取管理员列表失败，你可在代码中手动配置管理员，错误信息：\n" + str(e))
+            管理员列表 = []
 
-        # 安全配置
-        安全配置: dict = config['安全配置']
-        self.敏感字符列表 = 清理列表(安全配置['敏感字符列表'])
-        config['安全配置']['敏感字符列表'] = self.敏感字符列表
-        self.替换目标 = 安全配置['替换目标']
+        def 清理列表(l: list) -> list[str]:
+            """去除列表中每个元素的空白字符，并过滤掉空字符串"""
+            return list(dict.fromkeys([i.strip() for i in l if i.strip()]))
 
-        # 自动从 AstrBot 配置读取 API 密钥
-        self._加载api密钥(config)
+        def 解析all(l: list[str], ad=True) -> list[str]:
+            """解析all和admin"""
+            if "all" in l:
+                return ["all"]
+            if ad and "admin" in l:
+                l.extend(管理员列表)
+            return list(dict.fromkeys(l))
 
-        # 指令配置
-        指令配置: dict = config['指令配置']
-        self.指令白名单 = 清理列表(指令配置['指令白名单'])
-        self.指令黑名单 = 指令配置['指令黑名单']
+        # ========== 过滤配置 ==========
+        过滤配置: dict = config['过滤配置']
+        self.允许的群组: list[str] = 解析all(清理列表(过滤配置['允许的群组']), False)
+        self.允许的用户: list[str] = 解析all(清理列表(过滤配置['允许的用户']))
+        self.私聊允许的用户: list[str] = 解析all(清理列表(过滤配置['私聊允许的用户']))
+        self.私聊转发所有消息: bool = 过滤配置['私聊转发所有消息']
+        self.引用唤醒: bool = 过滤配置['引用唤醒']
+        self.艾特机器人触发: bool = 过滤配置['艾特机器人触发']
+        self.触发关键词: list[str] = 清理列表(过滤配置['触发关键词'])
+        self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
 
-    def _加载api密钥(self, config):
-        """从 AstrBot cmd_config.json 自动加载 API 密钥到敏感字符列表"""
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.dirname(os.path.dirname(script_dir))
-            cmd_config_path = os.path.join(data_dir, 'cmd_config.json')
-            with open(cmd_config_path, 'r', encoding='utf-8-sig') as f:
-                cmd_config = json.load(f)
-            for source in cmd_config.get('provider_sources', []):
-                keys = source.get('key', [])
-                if isinstance(keys, str):
-                    keys = [keys]
-                self.敏感字符列表.extend(keys)
-            self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
-            config['安全配置']['敏感字符列表'] = self.敏感字符列表
-            logger.info(f"[Hermes适配器] 已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
-        except Exception as e:
-            logger.warning(f"[Hermes适配器] 自动读取 AstrBot 密钥失败: {e}")
+        # ========== 授权配置 ==========
+        授权配置: dict = config['授权配置']
+        self.允许approve的用户: list[str] = 解析all(清理列表(授权配置['允许approve的用户']))
+        self.允许deny的用户: list[str] = 解析all(清理列表(授权配置['允许deny的用户']))
+        self.无权限处理方式: str = 授权配置['无权限处理方式']
+        self.自定义拒绝信息: str = 授权配置['自定义拒绝信息']
+        self.approve无权限提示: str = 授权配置['approve无权限提示']
+        self.允许其他指令的用户: list[str] = 解析all(清理列表(授权配置['允许其他指令的用户']))
+        self.开启中文映射: bool = 授权配置['开启中文映射']
 
-    # ========== 生命周期 ==========
+        self.转发时贴表情: bool = config['emoji配置']['转发时贴表情']
+        self.过滤llm结果: bool = config['脱敏配置']['过滤llm结果']
+        self.替换目标: str = config['脱敏配置']['替换目标']
+        自动添加token = config['脱敏配置']['自动添加token']
 
-    async def initialize(self):
-        """异步初始化"""
-        self.会话 = aiohttp.ClientSession()
-        self.onebot_client = OneBotClient(self.会话, self.onebot_api_url, self.onebot_api_token)
+        if 自动添加token:
+            config['脱敏配置']['敏感字符列表'].extend([
+                连接配置['hermes_token'], 连接配置['NapCat_api_token'], 连接配置['反向HTTP令牌']
+            ])
+        self.敏感字符列表:list[str] = config['脱敏配置']['敏感字符列表']
 
-        self.cmd_manager.rebuild_cache()
-        self._打印文件修改时间()
+        self.ws服务 = None
+        self.ws任务 = None
+        self.ws已连接 = False
+        self.ws重连延迟 = 1.0
+        Tools.记录消息ID = self.引用唤醒
+        self.NapCatSend = NapCatSend(config, self.event)
+        if self.开启反向HTTP:
+            from .reverse_http import ReverseHTTPServer
+            self.反向HTTP = ReverseHTTPServer(self.NapCatSend, config)
 
-        if self.启用_http_服务器:
-            await self.http_server.start(self.http_服务器_主机, self.http_服务器_端口)
+        if config['脱敏配置']['自动保存']:
+            config.save_config()
 
-        self.ws_client = WebSocketClient(
-            self.hermes_ws_url, self.hermes_token,
-            self.onebot_client, self
-        )
-        await self.ws_client.start()
-
-        logger.info("[Hermes适配器] 初始化完成")
-
-    async def terminate(self):
-        """插件终止时清理资源"""
-        if self.ws_client:
-            await self.ws_client.stop()
-        await self.http_server.stop()
-        if self.会话:
-            await self.会话.close()
-        logger.info("[Hermes适配器] 插件已停止")
-
-    # ========== 消息监听 ==========
+        debug("[Hermes适配器] __init__完成")
+    # ========== 消息处理 ==========
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
-    async def on_message(self, event: AiocqhttpMessageEvent):
+    async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 event 并转发给 Hermes"""
         消息链 = event.get_messages()
         if not 消息链:
@@ -166,240 +106,250 @@ class Hermes适配器(Star):
 
         if not isinstance(event, AiocqhttpMessageEvent):
             return
+        raw:dict = dict(event.message_obj.raw_message)
+        event.get_group_id()
+        self.event[0] = event
 
-        消息内容 = event.get_message_str()
-        群号 = event.get_group_id()
-        用户id = event.get_sender_id()
-        用户名 = event.get_sender_name()
-
-        # 缓存 event
-        if 群号:
-            self.群组事件[群号] = event
-        else:
-            self.私聊事件[用户id] = event
-
-        # 跳过框架指令
-        if self.cmd_manager.是框架指令(消息内容):
+        转发, data = await self.检查转发到Hermes(event)
+        if 转发 and self.处理冲突(event):
+            来源 = "群聊" if raw.get('group_id') else "私聊"
+            await self.发送ws消息(data)
+            if self.转发时贴表情:
+                await self.NapCatSend.贴表情(data)
+            info(f"[Hermes适配器] 已转发[{Tools.用户名(raw)}] 的{来源}消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
+        debug(f"[Hermes适配器] 转发检测未通过")
 
-        # 判断是否转发
-        if not self.消息管理器.是否转发(event):
-            return
+    @filter.on_llm_response(priority=sys.maxsize)
+    async def llm请求后(self, _, resp: LLMResponse):
+        """llm请求后过滤敏感字符"""
+        llm文本 = resp.completion_text
+        for 敏感词 in self.敏感字符列表:
+            llm文本 = llm文本.replace(敏感词, self.替换目标)
+        resp.completion_text = llm文本
 
-        # 构造事件体并发送
-        onebot事件体 = await self.消息管理器.构造onebot事件体(event)
-        await self.ws_client.send(onebot事件体)
-        event.set_extra(self.消息管理器.已转发键, True)
-        self.统计数据['messages_forwarded'] += 1
-
-        # 转发成功后贴表情
-        if self.emoji_manager.转发时贴表情:
-            await self.emoji_manager.贴表情(self.onebot_client, event.message_obj.message_id)
-
-        来源 = "群聊" if 群号 else "私聊"
-        logger.info(f"[Hermes适配器] 已转发[{用户名}] 的{来源}消息到 Hermes：{消息内容[:50]}")
-
-    # ========== 用户指令 ==========
-
-    @filter.command_group("hermes")
-    async def hermes_cmd(self, event: AiocqhttpMessageEvent):
-        pass
-
-    @hermes_cmd.command("status", alias={"状态"})
-    async def cmd_status(self, event: AiocqhttpMessageEvent):
-        """查看 Hermes 适配器状态"""
-        运行耗时 = time.time() - self.统计数据['start_time']
-        小时数 = int(运行耗时 // 3600)
-        分钟数 = int((运行耗时 % 3600) // 60)
-        ws状态 = "已连接" if self.ws_client.已连接 else "未连接"
-
-        输出行 = [
-            'Hermes 适配器状态 (WebSocket 版本)',
-            f'运行时间: {小时数}小时{分钟数}分钟',
-            f'WebSocket: {ws状态}',
-            f'已缓存指令: {len(self.cmd_manager.处理器缓存)}个',
-            f'已缓存群: {len(self.群组事件)}个',
-            f'已缓存私聊: {len(self.私聊事件)}个',
-            f'转发消息: {self.统计数据["messages_forwarded"]}条',
-            f'执行指令: {self.统计数据["commands_executed"]}次',
-            f'错误次数: {self.统计数据["errors"]}次',
-            f'重连次数: {self.统计数据["ws_reconnects"]}次',
-            '',
-            f'Hermes WebSocket: {self.hermes_ws_url}',
-            f'HTTP 服务器: http://{self.http_服务器_地址}',
-            f'已缓存群列表: {", ".join(self.群组事件.keys()) or "无"}',
-        ]
-        yield event.plain_result('\n'.join(输出行))
-
-    @hermes_cmd.command("test")
-    async def cmd_test(self, event: AiocqhttpMessageEvent):
-        """测试与 Hermes 的连接"""
-        if self.ws_client.已连接:
-            yield event.plain_result('WebSocket 已连接到 Hermes')
-        else:
-            yield event.plain_result('WebSocket 未连接')
-
-    # ========== LLM 工具 ==========
-
-    @filter.llm_tool("hermes_task")
-    async def hermes_task(self, event: AiocqhttpMessageEvent, task: str) -> str:
+    @filter.llm_tool("hermes_agent")
+    async def hermes_agent(self, event: AiocqhttpMessageEvent, task: str = "") -> str:
         """
-        将复杂任务转发给 Hermes Agent 自主执行。Hermes 是一个强大的 AI Agent，可以处理复杂任务。
-        当用户需要执行无法通过现有指令完成的复杂任务时（如信息查询、数据分析、复杂操作等），使用此工具。
-        Hermes 会自行决策并回复结果。
+        调用 Hermes Agent 执行任务或命令。Hermes 是一个强大的 AI Agent，可以执行各种复杂任务。
+        当用户需要执行复杂任务、查询信息、处理数据、调用其他插件功能时，可以使用此工具。
 
         Args:
-            task(string): 任务描述，详细说明需要 Hermes 完成的任务内容
+            task(string): 任务描述，详细说明需要完成什么任务
         """
+        task = task.strip()
+        if not task:
+            return "请输入task参数（任务描述）"
         if not isinstance(event, AiocqhttpMessageEvent):
             return "当前平台不支持Hermes"
         try:
-            return await self._llm_forward_task(event, task)
+            if self.ws已连接:
+                return "Hermes Agent 未连接，请稍后再试"
+            NapCat事件体 = Tools.构造文本NapCat事件体(event, task)
+            await self.发送ws消息(NapCat事件体)
+            return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
         except Exception as e:
-            logger.error(f"[Hermes适配器] LLM工具转发任务失败: {e}", exc_info=True)
-            return f"转发任务失败: {str(e)}"
+            error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
+            return f"执行失败: {str(e)}"
 
-    @filter.llm_tool("hermes_command")
-    async def hermes_command(self, event: AiocqhttpMessageEvent, command: str, args: str = "") -> str:
-        """
-        调用 Hermes 适配器执行指定的 AstrBot 指令。所有 AstrBot 插件指令都可以通过此工具执行。
-        当用户需要执行具体的机器人指令时（如点歌、查询、分析等），使用此工具。
+    # ========== 转发Hermes判断 ==========
 
-        Args:
-            command(string): 要执行的 AstrBot 指令名称（如 "点歌"、"群分析"、"状态" 等）
-            args(string): 指令参数（可选，如歌曲名、群号等）
-        """
-        if not isinstance(event, AiocqhttpMessageEvent):
-            return "当前平台不支持Hermes"
+    def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
+        """处理 LLM 和 Hermes 同时唤醒时的冲突"""
+        if self.同时唤醒处理方式 == '只用Hermes':
+            info("[Hermes适配器] 终止事件，使用hermes")
+            event.stop_event()
+            return True
+        elif self.同时唤醒处理方式 == '都处理':
+            if event.is_at_or_wake_command:
+                info("[Hermes适配器] 已同时唤醒")
+            return True
+        elif self.同时唤醒处理方式 == '不使用Hermes':
+            if event.is_at_or_wake_command:
+                info("[Hermes适配器] llm已唤醒，不使用hermes")
+                return False
+            info("[Hermes适配器] llm未唤醒，使用hermes")
+            event.stop_event()
+            return True
+        return False
+
+    async def 检查转发到Hermes(self, event: AiocqhttpMessageEvent) -> tuple[bool, dict]:
+        """检查是否通过过滤配置"""
+        raw: dict = dict(event.message_obj.raw_message)
+        群号 = str(raw.get('group_id', ""))
+        qq = str(raw.get('user_id', ""))
+        if not 群号:
+            if not Tools.all判断(self.私聊允许的用户, qq):
+                return False, raw
+            if  self.私聊转发所有消息:
+                return True, raw
+            return False, raw
+        if not Tools.all判断(self.允许的群组, 群号):
+            return False, raw
+        if not Tools.all判断(self.允许的用户, qq):
+            return False, raw
+        if self.引用唤醒 and (message_id := Tools.引用ID(raw)) and Tools.mhas(message_id):
+            return True, raw
+        if self.艾特机器人触发 and event.get_self_id() in Tools.艾特ID(raw):
+            return True, raw
         try:
-            return await self._llm_execute_command(event, command, args)
-        except Exception as e:
-            logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
-            return f"执行指令失败: {str(e)}"
+            text = raw['message'][0]['data']['text']
+        except (KeyError, IndexError):
+            text = ""
+        if text in Tools.授权命令映射:
+            text = Tools.授权命令映射[text]
+        if text.startswith("/approve"):
+            if Tools.all判断(self.允许approve的用户, qq):
+                return True, Tools.构造文本NapCat事件体(event, text)
+            else:
+                if self.approve无权限提示:
+                    await self.发送文本给NapCat(event, self.approve无权限提示)
+                if self.无权限处理方式 == "自动发送/deny拒绝命令":
+                    return True, Tools.构造文本NapCat事件体(event, '/deny')
+                elif self.无权限处理方式 == "发送自定义拒绝信息给Hermes":
+                    return True, Tools.构造文本NapCat事件体(event, self.自定义拒绝信息)
+                return False, raw
+        elif text.startswith("/deny"):
+            if Tools.all判断(self.允许deny的用户, qq):
+                return True, Tools.构造文本NapCat事件体(event, text)
+            return False, raw
+        elif text.startswith("/"):
+            if Tools.all判断(self.允许其他指令的用户, qq):
+                return True, Tools.构造文本NapCat事件体(event, text)
+            return False, raw
+        if any(i in text for i in self.触发关键词):
+            return True, raw
+        return False, raw
 
-    async def _llm_execute_command(self, event: AiocqhttpMessageEvent, command: str, args: str) -> str:
-        """LLM 工具：执行具体指令"""
-        logger.info(f"[Hermes适配器] LLM工具执行指令: {command} {args}")
-
-        allowed, reason = self.cmd_manager.check_allowed(command)
-        if not allowed:
-            return f"指令执行被拒绝: {reason}"
-
-        if not self.cmd_manager.处理器缓存:
-            self.cmd_manager.rebuild_cache()
-
-        handler_info = self.cmd_manager.resolve_command(command)
-        if not handler_info:
-            available = list(self.cmd_manager.处理器缓存.keys())[:20]
-            return f"未找到指令: {command}。可用指令: {', '.join(available)}"
-
-        result = await self.cmd_manager.execute_command(
-            command, args,
-            event.get_sender_id(), event.get_sender_name(),
-            event.get_group_id()
-        )
-
-        if result.get('success'):
-            parts = []
-            if result.get('texts'):
-                parts.append("执行结果:\n" + "\n".join(result['texts']))
-            if result.get('images'):
-                parts.append(f"生成了 {len(result['images'])} 张图片")
-            return "\n".join(parts) if parts else "指令执行成功"
+    async def 发送文本给NapCat(self, event: AiocqhttpMessageEvent, 文本:str) -> dict:
+        """通过当前event判断群聊或私聊直接发送文本"""
+        raw: dict = dict(event.message_obj.raw_message)
+        if raw.get('group_id'):
+            动作 = "send_group_msg"
+            参数 = {
+                "message_type": "group",
+                "group_id": raw.get('group_id'),
+                "message": 文本
+            }
         else:
-            return f"指令执行失败: {result.get('error', '未知错误')}"
+            动作 = "send_private_msg"
+            参数 = {
+                "message_type": "private",
+                "user_id": raw.get('user_id'),
+                "message": 文本
+            }
+        结果 = await self.NapCatSend.发送动作参数到NapCat(动作, 参数)
+        return 结果
 
-    async def _llm_forward_task(self, event: AiocqhttpMessageEvent, task: str) -> str:
-        """LLM 工具：转发任务给 Hermes"""
-        logger.info(f"[Hermes适配器] LLM工具执行任务: {task}")
 
-        if not self.ws_client.已连接:
-            return "Hermes Agent 未连接，请稍后再试"
+    # ========== Hermes WebSocket ==========
 
-        onebot事件体 = await self.消息管理器.构造onebot事件体(event)
-        await self.ws_client.send(onebot事件体)
-        event.set_extra(self.消息管理器.已转发键, True)
-        self.统计数据['messages_forwarded'] += 1
+    async def ws开始(self):
+        """启动 WebSocket 连接循环"""
+        self.ws任务 = asyncio.create_task(self.ws连接循环())
 
-        return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
+    async def ws停止(self):
+        """停止 WebSocket 连接"""
+        if self.ws任务:
+            self.ws任务.cancel()
+            try:
+                await self.ws任务
+            except asyncio.CancelledError:
+                pass
+        if self.ws服务:
+            await self.ws服务.close()
 
-    @filter.llm_tool("hermes_status")
-    async def hermes_status(self, _) -> str:
-        """
-        查询 Hermes Agent 和适配器的运行状态。
+    async def 发送ws消息(self, data: dict):
+        """发送 WebSocket 消息"""
+        if self.ws已连接:
+            try:
+                await self.ws服务.send(json.dumps(data, ensure_ascii=False))
+                debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
+            except Exception as e:
+                error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
+                debug(f"[Hermes适配器] 发送失败，原始数据: {data}")
+                self.ws已连接 = False
 
-        Returns:
-            str: 状态信息，包括连接状态、运行时间、统计信息等
-        """
-        if not isinstance(event, AiocqhttpMessageEvent):
-            return "当前平台不支持Hermes"
-        运行耗时 = time.time() - self.统计数据['start_time']
-        小时数 = int(运行耗时 // 3600)
-        分钟数 = int((运行耗时 % 3600) // 60)
-        ws状态 = "已连接" if self.ws_client.已连接 else "未连接"
+    async def ws连接循环(self):
+        """WebSocket 重连循环"""
+        while True:
+            try:
+                await self.连接到ws()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                error(f"[Hermes适配器] WebSocket 连接异常: {e}")
 
-        return "\n".join([
-            "Hermes 适配器状态:",
-            f"- WebSocket 连接: {ws状态}",
-            f"- 运行时间: {小时数}小时{分钟数}分钟",
-            f"- 已缓存指令: {len(self.cmd_manager.处理器缓存)}个",
-            f"- 已缓存群: {len(self.群组事件)}个",
-            f"- 已缓存私聊: {len(self.私聊事件)}个",
-            f"- 已转发消息: {self.统计数据['messages_forwarded']}条",
-            f"- 已执行指令: {self.统计数据['commands_executed']}次",
-            f"- 错误次数: {self.统计数据['errors']}次"
-        ])
+            if self.ws已连接:
+                self.ws已连接 = False
+                info("[Hermes适配器] WebSocket 断开，准备重连...")
 
-    @filter.llm_tool("hermes_list_commands")
-    async def hermes_list_commands(self, _, category: str = "") -> str:
-        """
-        列出所有可通过 Hermes 执行的 AstrBot 指令。
+            info(f"[Hermes适配器] 等待 {self.ws重连延迟:.1f}s 后重连...")
+            await asyncio.sleep(self.ws重连延迟)
 
-        Args:
-            category (str): 指令分类过滤（可选），如 "音乐"、"宠物"、"好感度" 等
+    async def 连接到ws(self):
+        """连接到 Hermes WebSocket 并监听消息"""
+        头 = {}
+        if self.hermes_token:
+            头['Authorization'] = f'Bearer {self.hermes_token}'
 
-        Returns:
-            str: 指令列表，按分类组织
-        """
-        if not isinstance(event, AiocqhttpMessageEvent):
-            return "当前平台不支持Hermes"
+        info(f"[Hermes适配器] 正在连接到 Hermes: {self.hermes_ws_url}")
 
-        if not self.cmd_manager.处理器缓存:
-            self.cmd_manager.rebuild_cache()
+        async with websockets.connect(
+            self.hermes_ws_url,
+            additional_headers=头,
+            ping_interval=20,
+            ping_timeout=60
+        ) as ws:
+            self.ws服务 = ws
+            self.ws已连接 = True
+            self.ws重连延迟 = 1.0
 
-        categorized = self.cmd_manager.categorize_commands(category_filter=category)
+            info("[Hermes适配器] WebSocket 已连接到 Hermes")
 
-        输出行 = []
-        for cat, items in sorted(categorized.items()):
-            输出行.append(f"\n【{cat}】")
-            for cmd in items[:10]:
-                admin_tag = " [管理员]" if cmd['is_admin'] else ""
-                输出行.append(f"  - {cmd['usage']}: {cmd['description']}{admin_tag}")
+            await self.发送ws消息({
+                "type": "connect",
+                "platform": "qqonebot",
+                "self_id": "astrbot",
+                "data": {}
+            })
 
-        if not 输出行:
-            return f"没有找到分类为 '{category}' 的指令" if category else "没有找到可用指令"
+            async for 原始消息 in ws:
+                try:
+                    await self.处理ws消息(原始消息)
+                    info("[Hermes适配器] 收到来自Hermes的消息")
+                except Exception as e:
+                    error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
 
-        return f"可用指令列表 (共{len(self.cmd_manager.处理器缓存)}个):" + "\n".join(输出行)
+    async def 处理ws消息(self, raw):
+        """<说明>"""
+        data = json.loads(raw)
+        debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
+        结果 = await self.NapCatSend.发送data消息到NapCat(data)
+        debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
+        await self.发送ws消息(结果)
 
-    # ========== 工具方法 ==========
+    # ========== 生命周期 ==========
 
-    def _打印文件修改时间(self):
-        """打印插件目录下所有 py/pyc 文件的最后修改日期"""
-        插件目录 = os.path.dirname(__file__)
-        py文件 = glob.glob(os.path.join(插件目录, "*.py"))
-        pyc文件 = glob.glob(os.path.join(插件目录, "__pycache__", "*.pyc"))
-        所有文件 = py文件 + pyc文件
+    async def initialize(self):
+        """异步初始化"""
+        debug("[Hermes适配器] initialize开始")
+        if self.开启反向HTTP:
+            await self.反向HTTP.start()
+        await self.ws开始()
+        await asyncio.sleep(0.1)
+        info("[Hermes适配器] 初始化完成")
+        debug("[Hermes适配器] initialize完成")
 
-        if not 所有文件:
-            return
+    async def terminate(self):
+        """插件终止时清理资源"""
+        if self.开启反向HTTP:
+            await self.反向HTTP.stop()
+        await self.ws停止()
+        if self.NapCatSend.http会话 and not self.NapCatSend.http会话.closed:
+            await self.NapCatSend.http会话.close()
+            info("[Hermes适配器] HTTP 会话已关闭")
+        info("[Hermes适配器] 插件已停止")
 
-        最长文件名 = max(len(os.path.basename(f)) for f in 所有文件)
-        logger.debug("[Hermes适配器] ═══ 文件修改时间 ═══")
-        for f in sorted(所有文件):
-            文件名 = os.path.basename(f)
-            修改时间 = os.path.getmtime(f)
-            修改时间_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(修改时间))
-            logger.debug(f"[Hermes适配器]   {文件名:<{最长文件名}}  {修改时间_str}")
-        当前时间 = time.strftime("%Y-%m-%d %H:%M:%S")
-        logger.debug(f"[Hermes适配器]   {'当前时间':<{最长文件名}}  {当前时间}")
-        logger.debug("[Hermes适配器] ═══════════════════════")
+
+# 该类方法都依赖该类实例各种方法，无法拆分
