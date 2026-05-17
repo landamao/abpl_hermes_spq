@@ -58,7 +58,7 @@ class 指令执行HTTP服务器:
     # ========== 认证 ==========
 
     def _verify_auth(self, request: web.Request) -> bool:
-        token = self.config['连接配置']['http指令服务器token']
+        token = self.config['指令配置']['http指令服务器token']
         if not token:
             return True
         auth = request.headers.get('Authorization', '')
