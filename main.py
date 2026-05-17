@@ -101,6 +101,8 @@ class Hermes适配器(Star):
         self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
         logger.debug("[Hermes适配器] __init__完成")
+
+
     # ========== 消息处理 ==========
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
@@ -129,10 +131,11 @@ class Hermes适配器(Star):
     @filter.on_llm_response(priority=sys.maxsize)
     async def llm请求后(self, _, resp: LLMResponse):
         """llm请求后过滤敏感字符"""
-        llm文本 = resp.completion_text
-        for 敏感词 in self.敏感字符列表:
-            llm文本 = llm文本.replace(敏感词, self.替换目标)
-        resp.completion_text = llm文本
+        if self.过滤llm结果:
+            llm文本 = resp.completion_text
+            for 敏感词 in self.敏感字符列表:
+                llm文本 = llm文本.replace(敏感词, self.替换目标)
+            resp.completion_text = llm文本
 
     @filter.llm_tool("hermes_agent")
     async def llm工具_hermes_agent(self, event: AiocqhttpMessageEvent, task: str = "") -> str:
@@ -184,6 +187,7 @@ class Hermes适配器(Star):
         raw: dict = dict(event.message_obj.raw_message)
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
+        text = 纯文本(raw)
         if 群号:
             if not all判断(self.允许的群组, 群号):
                 return False, raw
@@ -193,15 +197,28 @@ class Hermes适配器(Star):
             if not all判断(self.私聊允许的用户, qq):
                 return False, raw
             if self.私聊转发所有消息:
-                return True, raw
+                if text.startswith(self.自定义指令前缀):
+                    return await self.指令检查(event, raw, text, qq)
+                return True, raw  #每个return True之前都要作指令检查
         if self.引用唤醒 and (message_id := 引用ID(raw)) and MessageId.has(message_id):
+            if text.startswith(self.自定义指令前缀):
+                return await self.指令检查(event, raw, text, qq)
             return True, raw
         if self.艾特机器人触发 and event.get_self_id() in 艾特ID(raw):
+            if text.startswith(self.自定义指令前缀):
+                return await self.指令检查(event, raw, text, qq)
             return True, raw
-        text = 纯文本(raw)
-        指令文本 = ""
         if text.startswith(self.自定义指令前缀):
-            指令文本 =  "/" + text[len(self.自定义指令前缀):]
+            return await self.指令检查(event, raw, text, qq)
+        if any(i in text for i in self.触发关键词):
+            if text.startswith(self.自定义指令前缀):
+                return await self.指令检查(event, raw, text, qq)
+            return True, raw
+        return False, raw
+
+    async def 指令检查(self, event: AiocqhttpMessageEvent, raw, text, qq) -> tuple[bool, dict]:
+        """指令检查"""
+        指令文本 =  "/" + text[len(self.自定义指令前缀):]
         if self.开启中文映射 and 指令文本 in 授权命令映射:
             指令文本 = 授权命令映射[指令文本]
         if 指令文本.startswith(f"/approve"):
@@ -223,8 +240,6 @@ class Hermes适配器(Star):
             if all判断(self.允许其他指令的用户, qq):
                 return True, 构造文本NapCat事件体(event, 指令文本)
             return False, raw
-        if any(i in text for i in self.触发关键词):
-            return True, raw
         return False, raw
 
     async def 发送文本给NapCat(self, event: AiocqhttpMessageEvent, 文本:str) -> dict:

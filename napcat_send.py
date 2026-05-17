@@ -144,20 +144,47 @@ class NapCatSend:
         logger.debug(f"[Hermes适配器] 贴表情发送结果：{结果}")
         return 结果
 
-    async def 发送动作参数到NapCat(self, 动作:str, 参数:dict) -> dict:
+    async def 发送框架消息链到NapCat(self, 消息链:list, 类型:str, ID:str, echo=None) -> dict:
+        """发送框架类型的消息链到NapCat
+        Args:
+            类型(str): 私聊or群聊
+            ID(str)：私聊qq号或群号
+        Returns:
+            发送结果"""
+        from astrbot.api.all import Reply, MessageChain
+        event = self.evnet[0]
+        # 过滤不兼容的嵌套 Reply 组件
+        原消息链 = 消息链
+        新消息链 = [c for c in 原消息链 if not isinstance(c, Reply)]
+        消息组 = await event._parse_onebot_json(MessageChain(chain=新消息链))
+        # 重新插入干净的 Reply
+        if 原消息链 and isinstance(原消息链[0], Reply):
+            消息组.insert(0, {"type": "reply", "data": {"id": str(原消息链[0].id)}})
+
+        if 类型 == "私聊":
+            动作 = "send_private_msg"
+            消息组['user_id'] = ID
+        elif 类型 == "群聊":
+            动作 = "send_group_msg"
+            消息组['group_id'] = ID
+        else:
+            return {"echo": echo, "status": "failed", "retcode": -1, "data": None}
+        return await self.发送data消息到NapCat({"action": 动作, "params": 消息组, "echo": echo})
+
+    async def 发送动作参数到NapCat(self, 动作:str, 参数:dict, echo=None) -> dict:
         """发送动作参数到NapCat"""
-        return await self.发送data消息到NapCat({"action": 动作, "params": 参数})
+        return await self.发送data消息到NapCat({"action": 动作, "params": 参数, "echo": echo})
 
     async def 发送data消息到NapCat(self, data:dict) -> dict:
-        """发送消息到NapCat统一接口"""
+        """所有发送消息到NapCat统一接口"""
         data = self.数据文本脱敏(data)
         if self.消息发送方式 == "框架已有的WebSocket":
             结果 = await self._通过框架发送消息到NapCat(data)
         elif self.消息发送方式 == "NapCat Http 服务器":
             结果 = await self._通过HTTP发送消息到NapCat(data)
         else:
-            结果 = {"echo": data.get('echo'), "status": "failed", "retcode": -1, "data": None}
-            logger.info(str(data))
+            logger.critical(f"意外未知的消息发送方式：{self.消息发送方式}\n原数据：{str(data)}")
+            结果 = await self._通过框架发送消息到NapCat(data)
         return 结果
 
     async def _通过框架发送消息到NapCat(self, data:dict) -> dict:
