@@ -79,7 +79,6 @@ class Hermes适配器(Star):
             config['脱敏配置']['敏感字符列表'].extend([
                 连接配置['hermes_token'], 连接配置['NapCat_api_token'], 连接配置['反向HTTP令牌']
             ])
-        self.敏感字符列表:list[str] = config['脱敏配置']['敏感字符列表']
 
         self.ws服务 = None
         self.ws任务 = None
@@ -93,6 +92,8 @@ class Hermes适配器(Star):
 
         if config['脱敏配置']['自动保存']:
             config.save_config()
+
+        self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
         debug("[Hermes适配器] __init__完成")
     # ========== 消息处理 ==========
