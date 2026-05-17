@@ -161,11 +161,6 @@ class NapCatSend:
         if 原消息链 and isinstance(原消息链[0], Reply):
             消息组.insert(0, {"type": "reply", "data": {"id": str(原消息链[0].id)}})
 
-        a = {'action': 'send_group_msg',
-             'params': {'group_id': 1103659691, 'message': [
-            {'type': 'text', 'data': {'text': '在啦在啦！咪咪正在修bug呢~还剩最后一处！'}}]},
-         'echo': 'hermes_35_1779031663326'}
-
         参数 = {'message': 消息组}
 
         if 类型 == "私聊":

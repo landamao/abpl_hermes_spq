@@ -276,17 +276,6 @@
             }
         }
     },
-    "其他配置": {
-        "description": "其他配置",
-        "type": "object",
-        "items": {
-            "info日志": {
-                "type": "bool",
-                "description": "使用info代替debug日志，方便调试",
-                "default": false
-            }
-        }
-    },
     "指令配置": {
         "description": "指令执行配置",
         "type": "object",
@@ -332,6 +321,17 @@
                 "description": "指令黑名单",
                 "default": [],
                 "hint": "列表中的指令不允许执行"
+            }
+        }
+    },
+    "其他配置": {
+        "description": "其他配置",
+        "type": "object",
+        "items": {
+            "info日志": {
+                "type": "bool",
+                "description": "使用info代替debug日志，方便调试",
+                "default": false
             }
         }
     }

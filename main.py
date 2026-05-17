@@ -85,7 +85,8 @@ class Hermes适配器(Star):
 
         if 自动添加token:
             config['脱敏配置']['敏感字符列表'].extend([
-                连接配置['hermes_token'], 连接配置['NapCat_api_token'], 连接配置['反向HTTP令牌']
+                连接配置['hermes_token'], 连接配置['NapCat_api_token'], 连接配置['反向HTTP令牌'],
+                config['指令配置']['http指令服务器token']
             ])
 
         self.ws服务 = None
@@ -189,8 +190,6 @@ class Hermes适配器(Star):
             logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
-    # ========== 转发Hermes判断 ==========
-
     @filter.llm_tool("execute_command")
     async def llm工具_执行指令(self, event: AiocqhttpMessageEvent, command: str = "", args: str = "") -> str:
         """
@@ -232,6 +231,56 @@ class Hermes适配器(Star):
         except Exception as e:
             logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
             return f"执行指令失败: {str(e)}"
+
+    @filter.llm_tool("hermes_status")
+    async def llm工具_hermes_status(self, _: AiocqhttpMessageEvent) -> str:
+        """
+        查询 Hermes Agent 和适配器的运行状态。
+
+        Returns:
+            str: 状态信息，包括连接状态、运行时间、统计信息等
+        """
+        ws_status = "已连接" if self.ws已连接 else "未连接"
+        cmd_count = len(self.指令管理器.处理器缓存) if self.指令管理器 else 0
+        group_cached = len(self.群事件)
+        private_cached = len(self.私聊事件)
+
+        return (
+            f"Hermes 适配器状态:\n"
+            f"- WebSocket 连接: {ws_status}\n"
+            f"- 已缓存指令: {cmd_count}个\n"
+            f"- 已缓存群聊事件: {group_cached}个\n"
+            f"- 已缓存私聊事件: {private_cached}个\n"
+            f"- 消息发送方式: {self.消息发送方式}\n"
+            f"- 指令HTTP服务器: {'开启' if self.启用指令HTTP服务器 else '关闭'}"
+        )
+
+    @filter.llm_tool("list_commands")
+    async def llm工具_list_commands(self, _: AiocqhttpMessageEvent) -> str:
+        """
+        列出所有可执行的 AstrBot 指令列表。
+
+        Returns:
+            str: 指令列表（指令名 + 描述）
+        """
+        if not self.指令管理器:
+            return "管理员未开启指令功能"
+        if not self.指令管理器.处理器缓存:
+            self.指令管理器.重建指令缓存()
+
+        commands = []
+        for name, info in self.指令管理器.处理器缓存.items():
+            desc = info.get('description', '无描述')
+            admin_tag = " [管理员]" if info.get('is_admin') else ""
+            commands.append(f"  • {name}: {desc}{admin_tag}")
+
+        if not commands:
+            return "没有找到可用指令"
+
+        return f"可用指令列表 (共{len(commands)}个):\n" + "\n".join(commands)
+
+
+    # ========== 转发Hermes判断 ==========
 
     def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
         """处理 LLM 和 Hermes 同时唤醒时的冲突"""

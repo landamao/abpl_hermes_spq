@@ -28,9 +28,9 @@ class 指令管理器:
             self.指令前缀 = "/"
 
         # 指令配置
-        指令配置: dict = config.get('指令配置', {})
-        self.指令白名单: list[str] = [i.strip() for i in 指令配置.get('指令白名单', []) if i.strip()]
-        self.指令黑名单: list[str] = [i.strip() for i in 指令配置.get('指令黑名单', []) if i.strip()]
+        指令配置: dict = config['指令配置']
+        self.指令白名单: list[str] = [i.strip() for i in 指令配置['指令白名单'] if i.strip()]
+        self.指令黑名单: list[str] = [i.strip() for i in 指令配置['指令黑名单'] if i.strip()]
 
     # ========== 缓存管理 ==========
 
@@ -161,17 +161,17 @@ class 指令管理器:
         # 权限检查
         允许, 理由 = self.指令权限检查(command)
         if not 允许:
-            return {'texts': [], 'images': [], 'sent': 0, 'success': False, 'error': 理由}
+            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': 理由}
 
         if not self.处理器缓存:
             self.重建指令缓存()
 
         处理器信息 = self.查找处理器信息(command)
         if 处理器信息['is_admin']:
-            return {'texts': [], 'images': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员，不允许通过此方法执行"}
+            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员，不允许通过此方法执行"}
         if not 处理器信息:
             available = list(self.处理器缓存.keys())[:20]
-            return {'texts': [], 'images': [], 'sent': 0, 'success': False,
+            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False,
                     'error': f'未找到指令: {command}。可用指令: {", ".join(available)}'}
 
         return await self._执行指令(处理器信息, args, user_id, user_name, group_id, event)
@@ -206,10 +206,8 @@ class 指令管理器:
             if event is None:
                 return {
                     "提示": "执行失败",
-                    "结果": {
-                        'texts': [], 'images': [], 'sent': 0,
-                        'success': False, 'error': '没有可用的 event 对象'
-                    }
+                    'texts': [], 'images': [], 'other': [], 'sent': 0,
+                    'success': False, 'error': '没有可用的 event 对象'
                 }
 
             # 构建执行用的 event（浅拷贝，替换消息内容）
@@ -275,42 +273,36 @@ class 指令管理器:
                     logger.error(f"[Hermes适配器] 执行指令异常: {e}", exc_info=True)
                     return {
                         "提示": "执行异常",
-                        "结果": {
-                            'texts': text_results, 'images': image_results, 'other': other_results,
-                            'sent': 0, 'success': False, 'error': f'执行异常: {str(e)}'
-                        }
+                        'success': False,
+                        'texts': text_results, 'images': image_results, 'other': other_results,
+                        'sent': 0,  'error': f'执行异常: {str(e)}'
                     }
             except Exception as e:
                 logger.error(f"[Hermes适配器] 执行指令异常: {e}", exc_info=True)
                 return {
                     "提示": "执行异常",
-                    "结果": {
-                        'texts': text_results, 'images': image_results, 'other': other_results,
-                        'sent': 0, 'success': False, 'error': f'执行异常: {str(e)}'
-                    }
+                    'success': False,
+                    'texts': text_results, 'images': image_results, 'other': other_results,
+                    'sent': 0, 'error': f'执行异常: {str(e)}'
                 }
 
             logger.info(f"[Hermes适配器] 指令执行完成: {cmd_name}, 发送 {sent_count} 个结果")
 
             return {
                 "提示": "执行成功，若有结果则已发送",
-                "结果":{
+                'success': True,
                 'texts': text_results,
                 'images': image_results,
                 'other': other_results,
-                'sent': sent_count,
-                'success': True
-                }
+                'sent': sent_count
             }
 
         except Exception as e:
             logger.error(f"[Hermes适配器] 内部执行指令失败: {e}", exc_info=True)
             return {
                 "提示": "执行失败",
-                "结果": {
-                    'texts': [], 'images': [], 'other': [], 'sent': 0,
-                    'success': False, 'error': str(e)
-                }
+                'success': False,
+                'texts': [], 'images': [], 'other': [], 'sent': 0, 'error': str(e)
             }
 
     async def _发送结果(self, group_id: str, result) -> dict:
