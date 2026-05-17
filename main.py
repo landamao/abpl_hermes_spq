@@ -7,13 +7,16 @@ from .Tools import *
 from . import logger
 from .napcat_send import NapCatSend
 from .message_id import MessageId
-class Hermes适配器(Star):
 
+class Hermes适配器(Star):
+    """中央管理器"""
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
         logger.debug("[Hermes适配器] __init__开始")
         super().__init__(context)
         self.config: AstrBotConfig = config
         self.event: list[AiocqhttpMessageEvent|None] = [None]  # 使用列表共享实时变化的event对象
+        self.群事件:dict[str, AiocqhttpMessageEvent] = {}
+        self.私聊事件:dict[str, AiocqhttpMessageEvent] = {}
 
         logger.设置info日志(config['其他配置']['info日志'])
 
@@ -91,6 +94,24 @@ class Hermes适配器(Star):
         self.ws重连延迟 = 1.0
         MessageId.记录消息ID = self.引用唤醒
         self.NapCatSend = NapCatSend(config, self.event)
+
+        # 指令执行 HTTP 服务器配置
+        指令配置: dict = config['指令配置']
+        self.启用llm指令执行器 = 指令配置['启用llm指令执行器']
+        self.启用指令HTTP服务器 = 指令配置['启用指令HTTP服务器']
+        if self.启用llm指令执行器 or self.启用指令HTTP服务器:
+            from .command_manager import 指令管理器
+            self.指令管理器 = 指令管理器(context, self.NapCatSend, config, self.群事件, self.私聊事件)
+        else:
+            self.指令管理器 = None
+        if self.启用指令HTTP服务器:
+            from .http_server import 指令执行HTTP服务器
+            self._指令HTTP主机 = 指令配置['指令HTTP服务器地址']
+            self._指令HTTP端口 = 指令配置['指令HTTP服务器端口']
+            self.指令执行HTTP服务器 = 指令执行HTTP服务器(self.指令管理器, self.NapCatSend, config)
+        else:
+            self.指令执行HTTP服务器 = None
+
         if self.开启反向HTTP:
             from .reverse_http import ReverseHTTPServer
             self.反向HTTP = ReverseHTTPServer(self.NapCatSend, config)
@@ -108,15 +129,22 @@ class Hermes适配器(Star):
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
     async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 event 并转发给 Hermes"""
-        消息链 = event.get_messages()
-        if not 消息链:
+        if not event.get_message_str():
+            # 不处理也不存没有文本的事件
             return
 
         if not isinstance(event, AiocqhttpMessageEvent):
             return
         raw:dict = dict(event.message_obj.raw_message)
-        event.get_group_id()
         self.event[0] = event
+        群号 = str(raw.get('group_id', ""))
+        if 群号:
+            if 群号 not in self.群事件:
+                self.群事件[群号] = event
+        else:
+            qq = str(raw.get('user_id', ""))
+            if qq not in self.私聊事件:
+                self.私聊事件[qq] = event
 
         转发, data = await self.检查转发到Hermes(event)
         if 转发 and self.处理冲突(event):
@@ -162,6 +190,48 @@ class Hermes适配器(Star):
             return f"执行失败: {str(e)}"
 
     # ========== 转发Hermes判断 ==========
+
+    @filter.llm_tool("execute_command")
+    async def llm工具_执行指令(self, event: AiocqhttpMessageEvent, command: str = "", args: str = "") -> str:
+        """
+        执行 AstrBot 框架的插件指令。当用户明确要求执行某个指令时使用。
+
+        Args:
+            command(string): 指令名（不含前缀），如 "钓鱼"、"签到"、"状态"
+            args(string): 指令参数（可选）
+        """
+        command = command.strip()
+        group_id = event.get_group_id() or ''
+        if not command:
+            return "请输入 command 参数（指令名）"
+        if not isinstance(event, AiocqhttpMessageEvent):
+            return "当前平台不支持"
+        if not self.指令管理器:
+            return "管理员未开启该功能"
+        try:
+            result = await self.指令管理器.执行指令(
+                command=command,
+                args=args.strip(),
+                user_id=event.get_sender_id(),
+                user_name=event.get_sender_name(),
+                group_id=group_id,
+                event=event
+            )
+            if result.get('success'):
+                parts = []
+                if result.get('texts'):
+                    parts.append("执行结果:\n" + "\n".join(result['texts']))
+                if result.get('images'):
+                    parts.append(f"生成了 {len(result['images'])} 张图片")
+                sent = result.get('sent', 0)
+                if sent:
+                    parts.append(f"已发送 {sent} 条消息到群")
+                return "\n".join(parts) if parts else "指令执行成功（无输出）"
+            else:
+                return f"指令执行失败: {result.get('error', '未知错误')}"
+        except Exception as e:
+            logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
+            return f"执行指令失败: {str(e)}"
 
     def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
         """处理 LLM 和 Hermes 同时唤醒时的冲突"""
@@ -343,8 +413,31 @@ class Hermes适配器(Star):
                     logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
 
     async def 处理ws消息(self, raw):
-        """<说明>"""
         data = json.loads(raw)
+        msg_type = data.get('type', '')
+        echo = data.get('echo', '')
+
+        # 处理 send_message：直接发送文本
+        if msg_type == 'send_message':
+            group_id = data.get('group_id')
+            user_id = data.get('user_id')
+            message = data.get('message', '')
+            if group_id:
+                await self.NapCatSend.发送动作参数到NapCat("send_group_msg", {
+                    "group_id": int(group_id), "message": message
+                })
+            elif user_id:
+                await self.NapCatSend.发送动作参数到NapCat("send_private_msg", {
+                    "user_id": int(user_id), "message": message
+                })
+            return
+
+        # ping 回复
+        if msg_type == 'ping':
+            await self.发送ws消息({"type": "pong", "echo": echo})
+            return
+
+        # 其他消息（含 api_request）：原样转发给 NapCat
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
         结果 = await self.NapCatSend.发送data消息到NapCat(data)
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
@@ -355,6 +448,9 @@ class Hermes适配器(Star):
     async def initialize(self):
         """异步初始化"""
         logger.debug("[Hermes适配器] initialize开始")
+        self.指令管理器.重建指令缓存()
+        if self.启用指令HTTP服务器:
+            await self.指令执行HTTP服务器.start(self._指令HTTP主机, self._指令HTTP端口)
         if self.开启反向HTTP:
             await self.反向HTTP.start()
         await self.ws开始()
@@ -366,6 +462,8 @@ class Hermes适配器(Star):
 
     async def terminate(self):
         """插件终止时清理资源"""
+        if self.指令执行HTTP服务器:
+            await self.指令执行HTTP服务器.stop()
         if self.开启反向HTTP:
             await self.反向HTTP.stop()
         await self.ws停止()
@@ -376,3 +474,5 @@ class Hermes适配器(Star):
 
 
 # 该类方法都依赖该类实例各种方法，无法拆分
+
+# 开源免费，用户使用自己找茬作死（例如端口填写超出范围），概不考虑

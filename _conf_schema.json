@@ -137,7 +137,7 @@
                     "不使用Hermes",
                     "都处理"
                 ],
-                "hint": "只用Hermes：拦截消息并转发给Hermes；  不使用Hermes：即使触发了转发给Hermes也不转发；  都处理：不拦截AstrBot的唤醒，并转发给Hermes"
+                "hint": "只用Hermes：拦截消息并转发给Hermes；  不使用Hermes：即使触发了转发给Hermes也不转发；  都处理：不拦截框架的唤醒，并转发给Hermes"
             }
         }
     },
@@ -284,6 +284,54 @@
                 "type": "bool",
                 "description": "使用info代替debug日志，方便调试",
                 "default": false
+            }
+        }
+    },
+    "指令配置": {
+        "description": "指令执行配置",
+        "type": "object",
+        "hint": "Hermes 通过 HTTP API 请求执行框架框架指令时的配置",
+        "items": {
+            "启用llm指令执行器": {
+                "type": "bool",
+                "description": "启用llm指令执行器",
+                "default": true,
+                "hint": "开启后llm也可以执行框架指令"
+            },
+            "启用指令HTTP服务器": {
+                "type": "bool",
+                "description": "启用指令执行HTTP服务器",
+                "default": true,
+                "hint": "开启后提供 HTTP API 供 Hermes 调用执行框架指令"
+            },
+            "指令HTTP服务器地址": {
+                "type": "string",
+                "description": "指令HTTP服务器监听地址",
+                "default": "127.0.0.1",
+                "hint": "主机地址，不包括端口"
+            },
+            "指令HTTP服务器端口": {
+                "type": "int",
+                "description": "指令HTTP服务器监听端口",
+                "default": "6700"
+            },
+            "http指令服务器token": {
+                "type": "string",
+                "description": "HTTP指令服务器认证token",
+                "default": "",
+                "hint": "留空表示无需认证"
+            },
+            "指令白名单": {
+                "type": "list",
+                "description": "指令白名单",
+                "default": [],
+                "hint": "留空表示允许所有指令，填写后只允许列表中的指令执行"
+            },
+            "指令黑名单": {
+                "type": "list",
+                "description": "指令黑名单",
+                "default": [],
+                "hint": "列表中的指令不允许执行"
             }
         }
     }

@@ -9,9 +9,9 @@ from .message_id import MessageId
 class NapCatSend:
     """所有发送到NapCat的消息都必须使用这个"""
 
-    def __init__(self, config:AstrBotConfig, evnet:list[AiocqhttpMessageEvent]):
+    def __init__(self, config:AstrBotConfig, event:list[AiocqhttpMessageEvent]):
         self.config = config
-        self.evnet = evnet
+        self.event = event
         连接配置: dict = config['连接配置']
         self.消息发送方式: str = 连接配置['消息发送方式'].strip()
         if self.消息发送方式 == "NapCat Http 服务器":
@@ -152,7 +152,7 @@ class NapCatSend:
         Returns:
             发送结果"""
         from astrbot.api.all import Reply, MessageChain
-        event = self.evnet[0]
+        event = self.event[0]
         # 过滤不兼容的嵌套 Reply 组件
         原消息链 = 消息链
         新消息链 = [c for c in 原消息链 if not isinstance(c, Reply)]
@@ -161,15 +161,22 @@ class NapCatSend:
         if 原消息链 and isinstance(原消息链[0], Reply):
             消息组.insert(0, {"type": "reply", "data": {"id": str(原消息链[0].id)}})
 
+        a = {'action': 'send_group_msg',
+             'params': {'group_id': 1103659691, 'message': [
+            {'type': 'text', 'data': {'text': '在啦在啦！咪咪正在修bug呢~还剩最后一处！'}}]},
+         'echo': 'hermes_35_1779031663326'}
+
+        参数 = {'message': 消息组}
+
         if 类型 == "私聊":
+            参数['user_id'] = ID
             动作 = "send_private_msg"
-            消息组['user_id'] = ID
         elif 类型 == "群聊":
             动作 = "send_group_msg"
-            消息组['group_id'] = ID
+            参数['group_id'] = ID
         else:
             return {"echo": echo, "status": "failed", "retcode": -1, "data": None}
-        return await self.发送data消息到NapCat({"action": 动作, "params": 消息组, "echo": echo})
+        return await self.发送data消息到NapCat({"action": 动作, "params": 参数, "echo": echo})
 
     async def 发送动作参数到NapCat(self, 动作:str, 参数:dict, echo=None) -> dict:
         """发送动作参数到NapCat"""
@@ -192,7 +199,7 @@ class NapCatSend:
         action = data.get('action', '')
         params = data.get('params', {})
         echo = data.get('echo')
-        bot = self.evnet[0].bot
+        bot = self.event[0].bot
         logger.debug("[Hermes适配器] 通过框架方法发送到NapCat")
         try:
             结果 = await bot.call_action(action, **params)
