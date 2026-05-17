@@ -269,5 +269,16 @@
                 "hint": "同时监听框架llm请求后的文本，过滤敏感字符"
             }
         }
+    },
+    "其他配置": {
+        "description": "其他配置",
+        "type": "object",
+        "items": {
+            "info日志": {
+                "type": "bool",
+                "description": "使用info代替debug日志，方便调试",
+                "default": false
+            }
+        }
     }
 }

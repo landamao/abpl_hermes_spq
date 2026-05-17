@@ -2,8 +2,9 @@ import os, json, yaml, random, aiohttp
 from aiocqhttp import ActionFailed
 from astrbot.api.all import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from . import Tools
-from .logger import *
+from . import logger
+from .message_id import MessageId
+
 
 class NapCatSend:
     """所有发送到NapCat的消息都必须使用这个"""
@@ -31,7 +32,7 @@ class NapCatSend:
         贴表情列表: str = emoji配置['贴表情列表'].strip()  # 字符串类型，逗号分隔
         if not 贴表情列表:
             config['emoji配置']['贴表情列表'] = config.schema['emoji配置']['items']['贴表情列表']['default']
-            warning("[Hermes适配器] 贴表情列表为空，已恢复默认")
+            logger.warning("[Hermes适配器] 贴表情列表为空，已恢复默认")
             贴表情列表: str = emoji配置['贴表情列表'].strip()
         try:
             清理后 = (贴表情列表.replace('\n', '').replace('\r', '')
@@ -46,7 +47,7 @@ class NapCatSend:
                     .replace(' ', '').replace('\t', '').replace('，', ','))
             parts = [i for i in 清理后.split(',') if i]
             self.贴表情列表: tuple = tuple(map(int, parts))
-            error(
+            logger.error(
                 f"[Hermes适配器] 解析 emoji ID 配置失败，已自动使用默认ID列表：{'，'.join(map(str, self.贴表情列表))}\n{e}",
                 exc_info=True)
 
@@ -78,9 +79,9 @@ class NapCatSend:
                 self.敏感字符列表.extend(keys)
             self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
             self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-            info(f"[Hermes适配器] 已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
+            logger.info(f"[Hermes适配器] 已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
         except Exception as e:
-            warning(f"[Hermes适配器] 自动读取 AstrBot 密钥失败: {e}")
+            logger.warning(f"[Hermes适配器] 自动读取 AstrBot 密钥失败: {e}")
 
     def _加载Hermes配置(self):
         """读取 Hermes config.yaml，提取所有 api_key 并加入敏感字符列表"""
@@ -100,7 +101,7 @@ class NapCatSend:
 
         try:
             if not os.path.exists(self.Hermes配置文件路径):
-                warning(f"[Hermes适配器] Hermes 配置文件不存在: {self.Hermes配置文件路径}")
+                logger.warning(f"[Hermes适配器] Hermes 配置文件不存在: {self.Hermes配置文件路径}")
                 return
             with open(self.Hermes配置文件路径, 'r', encoding='utf-8') as f:
                 config_data = yaml.safe_load(f)
@@ -112,13 +113,13 @@ class NapCatSend:
                 self.敏感字符列表.extend(hermes_keys)
                 self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
                 self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-                info(f"[Hermes适配器] 从 Hermes 配置中提取到 {len(hermes_keys)} 个 API Key，已加入敏感字符列表")
+                logger.info(f"[Hermes适配器] 从 Hermes 配置中提取到 {len(hermes_keys)} 个 API Key，已加入敏感字符列表")
             else:
-                info("[Hermes适配器] Hermes 配置中未找到任何 api_key 字段")
+                logger.info("[Hermes适配器] Hermes 配置中未找到任何 api_key 字段")
         except yaml.YAMLError as e:
-            error(f"[Hermes适配器] 解析 YAML 失败: {e}")
+            logger.error(f"[Hermes适配器] 解析 YAML 失败: {e}")
         except Exception as e:
-            error(f"[Hermes适配器] 读取 Hermes 配置失败: {e}")
+            logger.error(f"[Hermes适配器] 读取 Hermes 配置失败: {e}")
 
     async def 贴表情(self, mid: str|int|dict) -> dict:
         """给消息贴表情回应"""
@@ -131,7 +132,7 @@ class NapCatSend:
         elif isinstance(mid, (int, str)):
             mid = str(mid)
         if not mid:
-            warning(f"[Hermes适配器] 贴表情未找到message_id：{原mid}")
+            logger.warning(f"[Hermes适配器] 贴表情未找到有效消息ID：{原mid}")
             return {}
         动作 = "set_msg_emoji_like"
         参数 = {
@@ -140,7 +141,7 @@ class NapCatSend:
             "set": True
         }
         结果 = await self.发送动作参数到NapCat(动作, 参数)
-        debug(f"[Hermes适配器] 贴表情发送结果：{结果}")
+        logger.debug(f"[Hermes适配器] 贴表情发送结果：{结果}")
         return 结果
 
     async def 发送动作参数到NapCat(self, 动作:str, 参数:dict) -> dict:
@@ -156,7 +157,7 @@ class NapCatSend:
             结果 = await self._通过HTTP发送消息到NapCat(data)
         else:
             结果 = {"echo": data.get('echo'), "status": "failed", "retcode": -1, "data": None}
-            info(str(data))
+            logger.info(str(data))
         return 结果
 
     async def _通过框架发送消息到NapCat(self, data:dict) -> dict:
@@ -165,22 +166,22 @@ class NapCatSend:
         params = data.get('params', {})
         echo = data.get('echo')
         bot = self.evnet[0].bot
-        debug("[Hermes适配器] 通过框架方法发送到NapCat")
+        logger.debug("[Hermes适配器] 通过框架方法发送到NapCat")
         try:
             结果 = await bot.call_action(action, **params)
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 结果
-            Tools.madd(结果)
+            MessageId.add(结果)
             if self.回复消息贴表情:
                 await self.贴表情(结果)
             返回 = {"echo": echo, "status": "ok", "retcode": 0, "data": 结果 or {}}
         except ActionFailed as e:
-            error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
+            logger.error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             结果 = e.__dict__.get('result')
             结果['echo'] = echo
             返回 = 结果
         except Exception as e:
-            error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
+            logger.error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             返回 = {"echo": echo, "status": "failed", "retcode": -1, "data": None, "msg": str(e)}
         return 返回
 
@@ -189,7 +190,7 @@ class NapCatSend:
         action = data.get('action', '')
         params = data.get('params', {})
         echo = data.get('echo')
-        debug("[Hermes适配器] 通过HTTP发送到NapCat")
+        logger.debug("[Hermes适配器] 通过HTTP发送到NapCat")
 
         if self.http会话 is None or self.http会话.closed:
             self.http会话 = aiohttp.ClientSession(headers=self._http_headers)
@@ -199,16 +200,16 @@ class NapCatSend:
             async with self.http会话.post(url, json=params) as resp:
                 结果 = await resp.json()
             结果['echo'] = echo
-            debug(f"[Hermes适配器] API 响应: {action} -> {结果}")
+            logger.debug(f"[Hermes适配器] API 响应: {action} -> {结果}")
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 结果
-            Tools.madd(结果)
+            MessageId.add(结果)
             if self.回复消息贴表情:
                 await self.贴表情(结果)
             return 结果
 
         except Exception as e:
-            error(f"[Hermes适配器] API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
+            logger.error(f"[Hermes适配器] API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             return {"echo": echo, "status": "failed", "retcode": 100, "msg": str(e), "data": None}
 
     def 数据文本脱敏(self, data:dict) -> dict:
@@ -227,7 +228,7 @@ class NapCatSend:
             for 敏感词 in self.敏感字符列表:
                 if 敏感词 in message:
                     message = message.replace(敏感词, self.替换目标)
-                    debug(f"[Hermes适配器] 脱敏：替换字符串中的敏感字符")
+                    logger.debug(f"[Hermes适配器] 脱敏：替换字符串中的敏感字符")
             params['message'] = message
 
         elif isinstance(message, list):
@@ -245,6 +246,6 @@ class NapCatSend:
             for 敏感词 in self.敏感字符列表:
                 if 敏感词 in params['raw_message']:
                     params['raw_message'] = params['raw_message'].replace(敏感词, self.替换目标)
-            debug(f"[Hermes适配器] 脱敏：已过滤消息中的敏感字符")
+            logger.debug(f"[Hermes适配器] 脱敏：已过滤消息中的敏感字符")
 
         return data

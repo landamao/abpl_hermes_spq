@@ -3,17 +3,19 @@ from astrbot.api.event import filter
 from astrbot.api.provider import LLMResponse
 from astrbot.api.all import Star, Context, AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from . import Tools
-from .logger import *
+from .Tools import *
+from . import logger
 from .napcat_send import NapCatSend
-
+from .message_id import MessageId
 class Hermes适配器(Star):
 
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
-        debug("[Hermes适配器] __init__完成")
+        logger.debug("[Hermes适配器] __init__开始")
         super().__init__(context)
         self.config: AstrBotConfig = config
         self.event: list[AiocqhttpMessageEvent|None] = [None]  # 使用列表共享实时变化的event对象
+
+        logger.设置info日志(config['其他配置']['info日志'])
 
         # ========== 连接配置 ==========
         连接配置: dict = config['连接配置']
@@ -34,7 +36,7 @@ class Hermes适配器(Star):
         try:
             管理员列表 = context.get_config()["admins_id"]
         except Exception as e:
-            error("[Hermes适配器] 获取管理员列表失败，你可在代码中手动配置管理员，错误信息：\n" + str(e))
+            logger.error("[Hermes适配器] 获取管理员列表失败，你可在代码中手动配置管理员，错误信息：\n" + str(e))
             管理员列表 = []
 
         def 清理列表(l: list) -> list[str]:
@@ -84,7 +86,7 @@ class Hermes适配器(Star):
         self.ws任务 = None
         self.ws已连接 = False
         self.ws重连延迟 = 1.0
-        Tools.记录消息ID = self.引用唤醒
+        MessageId.记录消息ID = self.引用唤醒
         self.NapCatSend = NapCatSend(config, self.event)
         if self.开启反向HTTP:
             from .reverse_http import ReverseHTTPServer
@@ -95,7 +97,7 @@ class Hermes适配器(Star):
 
         self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
-        debug("[Hermes适配器] __init__完成")
+        logger.debug("[Hermes适配器] __init__完成")
     # ========== 消息处理 ==========
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
@@ -117,9 +119,9 @@ class Hermes适配器(Star):
             await self.发送ws消息(data)
             if self.转发时贴表情:
                 await self.NapCatSend.贴表情(data)
-            info(f"[Hermes适配器] 已转发[{Tools.用户名(raw)}] 的{来源}消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
+            logger.info(f"[Hermes适配器] 已转发[{用户名(raw)}] 的{来源}消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
-        debug(f"[Hermes适配器] 转发检测未通过")
+        logger.debug(f"[Hermes适配器] 转发检测未通过")
 
     @filter.on_llm_response(priority=sys.maxsize)
     async def llm请求后(self, _, resp: LLMResponse):
@@ -130,7 +132,7 @@ class Hermes适配器(Star):
         resp.completion_text = llm文本
 
     @filter.llm_tool("hermes_agent")
-    async def hermes_agent(self, event: AiocqhttpMessageEvent, task: str = "") -> str:
+    async def llm工具_hermes_agent(self, event: AiocqhttpMessageEvent, task: str = "") -> str:
         """
         调用 Hermes Agent 执行任务或命令。Hermes 是一个强大的 AI Agent，可以执行各种复杂任务。
         当用户需要执行复杂任务、查询信息、处理数据、调用其他插件功能时，可以使用此工具。
@@ -144,13 +146,13 @@ class Hermes适配器(Star):
         if not isinstance(event, AiocqhttpMessageEvent):
             return "当前平台不支持Hermes"
         try:
-            if self.ws已连接:
+            if not self.ws已连接:
                 return "Hermes Agent 未连接，请稍后再试"
-            NapCat事件体 = Tools.构造文本NapCat事件体(event, task)
+            NapCat事件体 = 构造文本NapCat事件体(event, task)
             await self.发送ws消息(NapCat事件体)
             return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
         except Exception as e:
-            error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
+            logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
     # ========== 转发Hermes判断 ==========
@@ -158,18 +160,18 @@ class Hermes适配器(Star):
     def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
         """处理 LLM 和 Hermes 同时唤醒时的冲突"""
         if self.同时唤醒处理方式 == '只用Hermes':
-            info("[Hermes适配器] 终止事件，使用hermes")
+            logger.info("[Hermes适配器] 终止事件，使用hermes")
             event.stop_event()
             return True
         elif self.同时唤醒处理方式 == '都处理':
             if event.is_at_or_wake_command:
-                info("[Hermes适配器] 已同时唤醒")
+                logger.info("[Hermes适配器] 已同时唤醒")
             return True
         elif self.同时唤醒处理方式 == '不使用Hermes':
             if event.is_at_or_wake_command:
-                info("[Hermes适配器] llm已唤醒，不使用hermes")
+                logger.info("[Hermes适配器] llm已唤醒，不使用hermes")
                 return False
-            info("[Hermes适配器] llm未唤醒，使用hermes")
+            logger.info("[Hermes适配器] llm未唤醒，使用hermes")
             event.stop_event()
             return True
         return False
@@ -180,43 +182,40 @@ class Hermes适配器(Star):
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
         if not 群号:
-            if not Tools.all判断(self.私聊允许的用户, qq):
+            if not all判断(self.私聊允许的用户, qq):
                 return False, raw
             if  self.私聊转发所有消息:
                 return True, raw
             return False, raw
-        if not Tools.all判断(self.允许的群组, 群号):
+        if not all判断(self.允许的群组, 群号):
             return False, raw
-        if not Tools.all判断(self.允许的用户, qq):
+        if not all判断(self.允许的用户, qq):
             return False, raw
-        if self.引用唤醒 and (message_id := Tools.引用ID(raw)) and Tools.mhas(message_id):
+        if self.引用唤醒 and (message_id := 引用ID(raw)) and MessageId.has(message_id):
             return True, raw
-        if self.艾特机器人触发 and event.get_self_id() in Tools.艾特ID(raw):
+        if self.艾特机器人触发 and event.get_self_id() in 艾特ID(raw):
             return True, raw
-        try:
-            text = raw['message'][0]['data']['text']
-        except (KeyError, IndexError):
-            text = ""
-        if text in Tools.授权命令映射:
-            text = Tools.授权命令映射[text]
+        text = 纯文本(raw)
+        if text in 授权命令映射:
+            text = 授权命令映射[text]
         if text.startswith("/approve"):
-            if Tools.all判断(self.允许approve的用户, qq):
-                return True, Tools.构造文本NapCat事件体(event, text)
+            if all判断(self.允许approve的用户, qq):
+                return True, 构造文本NapCat事件体(event, text)
             else:
                 if self.approve无权限提示:
                     await self.发送文本给NapCat(event, self.approve无权限提示)
                 if self.无权限处理方式 == "自动发送/deny拒绝命令":
-                    return True, Tools.构造文本NapCat事件体(event, '/deny')
+                    return True, 构造文本NapCat事件体(event, '/deny')
                 elif self.无权限处理方式 == "发送自定义拒绝信息给Hermes":
-                    return True, Tools.构造文本NapCat事件体(event, self.自定义拒绝信息)
+                    return True, 构造文本NapCat事件体(event, self.自定义拒绝信息)
                 return False, raw
         elif text.startswith("/deny"):
-            if Tools.all判断(self.允许deny的用户, qq):
-                return True, Tools.构造文本NapCat事件体(event, text)
+            if all判断(self.允许deny的用户, qq):
+                return True, 构造文本NapCat事件体(event, text)
             return False, raw
         elif text.startswith("/"):
-            if Tools.all判断(self.允许其他指令的用户, qq):
-                return True, Tools.构造文本NapCat事件体(event, text)
+            if all判断(self.允许其他指令的用户, qq):
+                return True, 构造文本NapCat事件体(event, text)
             return False, raw
         if any(i in text for i in self.触发关键词):
             return True, raw
@@ -265,10 +264,10 @@ class Hermes适配器(Star):
         if self.ws已连接:
             try:
                 await self.ws服务.send(json.dumps(data, ensure_ascii=False))
-                debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
+                logger.debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
             except Exception as e:
-                error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
-                debug(f"[Hermes适配器] 发送失败，原始数据: {data}")
+                logger.error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
+                logger.debug(f"[Hermes适配器] 发送失败，原始数据: {data}")
                 self.ws已连接 = False
 
     async def ws连接循环(self):
@@ -279,13 +278,13 @@ class Hermes适配器(Star):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                error(f"[Hermes适配器] WebSocket 连接异常: {e}")
+                logger.error(f"[Hermes适配器] WebSocket 连接异常: {e}")
 
             if self.ws已连接:
                 self.ws已连接 = False
-                info("[Hermes适配器] WebSocket 断开，准备重连...")
+                logger.info("[Hermes适配器] WebSocket 断开，准备重连...")
 
-            info(f"[Hermes适配器] 等待 {self.ws重连延迟:.1f}s 后重连...")
+            logger.info(f"[Hermes适配器] 等待 {self.ws重连延迟:.1f}s 后重连...")
             await asyncio.sleep(self.ws重连延迟)
 
     async def 连接到ws(self):
@@ -294,7 +293,7 @@ class Hermes适配器(Star):
         if self.hermes_token:
             头['Authorization'] = f'Bearer {self.hermes_token}'
 
-        info(f"[Hermes适配器] 正在连接到 Hermes: {self.hermes_ws_url}")
+        logger.info(f"[Hermes适配器] 正在连接到 Hermes: {self.hermes_ws_url}")
 
         async with websockets.connect(
             self.hermes_ws_url,
@@ -306,7 +305,7 @@ class Hermes适配器(Star):
             self.ws已连接 = True
             self.ws重连延迟 = 1.0
 
-            info("[Hermes适配器] WebSocket 已连接到 Hermes")
+            logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
 
             await self.发送ws消息({
                 "type": "connect",
@@ -318,29 +317,29 @@ class Hermes适配器(Star):
             async for 原始消息 in ws:
                 try:
                     await self.处理ws消息(原始消息)
-                    info("[Hermes适配器] 收到来自Hermes的消息")
+                    logger.info("[Hermes适配器] 收到来自Hermes的消息")
                 except Exception as e:
-                    error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
+                    logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
 
     async def 处理ws消息(self, raw):
         """<说明>"""
         data = json.loads(raw)
-        debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
+        logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
         结果 = await self.NapCatSend.发送data消息到NapCat(data)
-        debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
+        logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
         await self.发送ws消息(结果)
 
     # ========== 生命周期 ==========
 
     async def initialize(self):
         """异步初始化"""
-        debug("[Hermes适配器] initialize开始")
+        logger.debug("[Hermes适配器] initialize开始")
         if self.开启反向HTTP:
             await self.反向HTTP.start()
         await self.ws开始()
         await asyncio.sleep(0.1)
-        info("[Hermes适配器] 初始化完成")
-        debug("[Hermes适配器] initialize完成")
+        logger.debug("[Hermes适配器] initialize完成")
+        logger.info("[Hermes适配器] 初始化完成")
 
     async def terminate(self):
         """插件终止时清理资源"""
@@ -349,8 +348,8 @@ class Hermes适配器(Star):
         await self.ws停止()
         if self.NapCatSend.http会话 and not self.NapCatSend.http会话.closed:
             await self.NapCatSend.http会话.close()
-            info("[Hermes适配器] HTTP 会话已关闭")
-        info("[Hermes适配器] 插件已停止")
+            logger.info("[Hermes适配器] HTTP 会话已关闭")
+        logger.info("[Hermes适配器] 插件已停止")
 
 
 # 该类方法都依赖该类实例各种方法，无法拆分

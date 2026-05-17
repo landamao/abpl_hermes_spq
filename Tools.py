@@ -1,5 +1,4 @@
 """不依赖其他参数的静态方法"""
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
 授权命令映射 = {
     "/同意": "/approve",
@@ -8,31 +7,6 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
     "/拒绝": "/deny"
 }
 
-message_id_set:set = set()
-记录消息ID = True
-最大数量: int = 100000
-def madd(mid:int|str|dict) -> None:
-    if not 记录消息ID:
-        return
-    if isinstance(mid, dict):
-        if 'message_id' in mid:
-            mid = mid['message_id']
-        elif 'data' in mid:
-            mid = mid['data'].get('message_id')
-    elif isinstance(mid, (int, str)):
-        mid = str(mid)
-    else:
-        return
-    message_id_set.add(str(mid))
-    if len(message_id_set) > 最大数量:
-        for _ in range(最大数量//2):
-            message_id_set.pop()  # 随机删除一个元素
-
-def mhas(mid:int|str) -> bool:
-    return str(mid) in message_id_set
-
-def mclear() -> None:
-    message_id_set.clear()
 
 def 用户名(data: dict) -> str:
     """
@@ -43,6 +17,14 @@ def 用户名(data: dict) -> str:
     card = sender.get('card', '')
     nickname = sender.get('nickname', '')
     return card or nickname
+
+def 纯文本(data: dict) -> str:
+    text = ''
+    messages = data.get('message', [])
+    for i in messages:
+        if i.get('type') == 'text':
+            text += ' ' + str(i.get('data', {}).get('text', ''))
+    return text.strip()
 
 def 引用ID(data: dict) -> str|None:
     """
@@ -83,7 +65,7 @@ def all判断(列表:list, lid:str):
     return lid in 列表
 
 
-def 构造文本NapCat事件体(event: AiocqhttpMessageEvent, 文本: str) -> dict:
+def 构造文本NapCat事件体(event, 文本: str) -> dict:
     """构造包含指定文本的NapCat事件体"""
     raw: dict = dict(event.message_obj.raw_message)
     if raw.get('group_id'):
