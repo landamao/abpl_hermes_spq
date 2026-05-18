@@ -167,12 +167,12 @@ class 指令管理器:
             self.重建指令缓存()
 
         处理器信息 = self.查找处理器信息(command)
-        if 处理器信息['is_admin']:
-            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员，不允许通过此方法执行"}
         if not 处理器信息:
             available = list(self.处理器缓存.keys())[:20]
             return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False,
                     'error': f'未找到指令: {command}。可用指令: {", ".join(available)}'}
+        if 处理器信息['is_admin']:
+            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员权限，不允许通过此方法执行"}
 
         return await self._执行指令(处理器信息, args, user_id, user_name, group_id, event)
 

@@ -128,16 +128,15 @@ class Hermes适配器(Star):
     # ========== 消息处理 ==========
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def 接收消息(self, event: AiocqhttpMessageEvent):
-        """监听所有消息（群聊+私聊），存储 event 并转发给 Hermes"""
+        """监听所有消息（群聊+私聊），存储 AiocqhttpMessageEvent"""
         if not event.get_message_str():
             # 不处理也不存没有文本的事件
             return
 
-        if not isinstance(event, AiocqhttpMessageEvent):
-            return
-        raw:dict = dict(event.message_obj.raw_message)
-        self.event[0] = event
+        raw:dict = event.message_obj.raw_message
+        self.event[0] = event  #此event可以是任意AiocqhttpMessageEvent
         群号 = str(raw.get('group_id', ""))
         if 群号:
             if 群号 not in self.群事件:
@@ -153,7 +152,7 @@ class Hermes适配器(Star):
             await self.发送ws消息(data)
             if self.转发时贴表情:
                 await self.NapCatSend.贴表情(data)
-            logger.info(f"[Hermes适配器] 已转发[{用户名(raw)}] 的{来源}消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
+            logger.info(f"[Hermes适配器] 已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
         logger.debug(f"[Hermes适配器] 转发检测未通过")
 
@@ -167,6 +166,7 @@ class Hermes适配器(Star):
             resp.completion_text = llm文本
 
     @filter.llm_tool("hermes_agent")
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_hermes_agent(self, event: AiocqhttpMessageEvent, task: str = "") -> str:
         """
         调用 Hermes Agent 执行任务或命令。Hermes 是一个强大的 AI Agent，可以执行各种复杂任务。
@@ -191,6 +191,7 @@ class Hermes适配器(Star):
             return f"执行失败: {str(e)}"
 
     @filter.llm_tool("execute_command")
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_执行指令(self, event: AiocqhttpMessageEvent, command: str = "", args: str = "") -> str:
         """
         执行 AstrBot 框架的插件指令。当用户明确要求执行某个指令时使用。
@@ -233,6 +234,7 @@ class Hermes适配器(Star):
             return f"执行指令失败: {str(e)}"
 
     @filter.llm_tool("hermes_status")
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_hermes_status(self, _: AiocqhttpMessageEvent) -> str:
         """
         查询 Hermes Agent 和适配器的运行状态。
@@ -256,6 +258,7 @@ class Hermes适配器(Star):
         )
 
     @filter.llm_tool("list_commands")
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_list_commands(self, _: AiocqhttpMessageEvent) -> str:
         """
         列出所有可执行的 AstrBot 指令列表。
@@ -303,7 +306,7 @@ class Hermes适配器(Star):
 
     async def 检查转发到Hermes(self, event: AiocqhttpMessageEvent) -> tuple[bool, dict]:
         """检查是否通过过滤配置"""
-        raw: dict = dict(event.message_obj.raw_message)
+        raw: dict = event.message_obj.raw_message
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
         text = 纯文本(raw)
@@ -323,7 +326,7 @@ class Hermes适配器(Star):
             if text.startswith(self.自定义指令前缀):
                 return await self.指令检查(event, raw, text, qq)
             return True, raw
-        if self.艾特机器人触发 and event.get_self_id() in 艾特ID(raw):
+        if self.艾特机器人触发 and str(raw.get('self_id')) in 艾特ID(raw):
             if text.startswith(self.自定义指令前缀):
                 return await self.指令检查(event, raw, text, qq)
             return True, raw
@@ -363,7 +366,7 @@ class Hermes适配器(Star):
 
     async def 发送文本给NapCat(self, event: AiocqhttpMessageEvent, 文本:str) -> dict:
         """通过当前event判断群聊或私聊直接发送文本"""
-        raw: dict = dict(event.message_obj.raw_message)
+        raw: dict = event.message_obj.raw_message
         if raw.get('group_id'):
             动作 = "send_group_msg"
             参数 = {
@@ -407,8 +410,7 @@ class Hermes适配器(Star):
                 logger.debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
             except Exception as e:
                 logger.error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
-                logger.debug(f"[Hermes适配器] 发送失败，原始数据: {data}")
-                self.ws已连接 = False
+                logger.error(f"[Hermes适配器] 发送失败，原始数据: {data}")
 
     async def ws连接循环(self):
         """WebSocket 重连循环"""
@@ -450,7 +452,7 @@ class Hermes适配器(Star):
             await self.发送ws消息({
                 "type": "connect",
                 "platform": "qqonebot",
-                "self_id": "astrbot",
+                "self_id": "纳西妲",
                 "data": {}
             })
 
@@ -463,30 +465,6 @@ class Hermes适配器(Star):
 
     async def 处理ws消息(self, raw):
         data = json.loads(raw)
-        msg_type = data.get('type', '')
-        echo = data.get('echo', '')
-
-        # 处理 send_message：直接发送文本
-        if msg_type == 'send_message':
-            group_id = data.get('group_id')
-            user_id = data.get('user_id')
-            message = data.get('message', '')
-            if group_id:
-                await self.NapCatSend.发送动作参数到NapCat("send_group_msg", {
-                    "group_id": int(group_id), "message": message
-                })
-            elif user_id:
-                await self.NapCatSend.发送动作参数到NapCat("send_private_msg", {
-                    "user_id": int(user_id), "message": message
-                })
-            return
-
-        # ping 回复
-        if msg_type == 'ping':
-            await self.发送ws消息({"type": "pong", "echo": echo})
-            return
-
-        # 其他消息（含 api_request）：原样转发给 NapCat
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
         结果 = await self.NapCatSend.发送data消息到NapCat(data)
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
@@ -497,7 +475,8 @@ class Hermes适配器(Star):
     async def initialize(self):
         """异步初始化"""
         logger.debug("[Hermes适配器] initialize开始")
-        self.指令管理器.重建指令缓存()
+        if self.指令管理器:
+            self.指令管理器.重建指令缓存()
         if self.启用指令HTTP服务器:
             await self.指令执行HTTP服务器.start(self._指令HTTP主机, self._指令HTTP端口)
         if self.开启反向HTTP:

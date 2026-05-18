@@ -14,7 +14,7 @@ import json
 import time
 from aiohttp import web
 from . import logger
-
+from urllib.parse import urlparse
 
 class 指令执行HTTP服务器:
     """指令执行 HTTP 服务器"""
@@ -38,7 +38,7 @@ class 指令执行HTTP服务器:
             app.router.add_get('/api/commands', self._handle_list_commands)
             app.router.add_get('/api/commands/for_hermes', self._handle_hermes_commands)
             app.router.add_get('/api/command/{command_name}', self._handle_command_detail)
-
+            host = urlparse(host).hostname
             self._runner = web.AppRunner(app)
             await self._runner.setup()
             self._site = web.TCPSite(self._runner, host, port)

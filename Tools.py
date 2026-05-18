@@ -2,9 +2,13 @@
 
 授权命令映射 = {
     "/同意": "/approve",
+    "/允许": "/approve",
     "/一直同意": "/approve always",
+    "/一直允许": "/approve always",
     "/会话同意": "/approve session",
-    "/拒绝": "/deny"
+    "/会话允许": "/approve session",
+    "/拒绝": "/deny",
+    "/状态": "/status"
 }
 
 
@@ -67,7 +71,7 @@ def all判断(列表:list, lid:str):
 
 def 构造文本NapCat事件体(event, 文本: str) -> dict:
     """构造包含指定文本的NapCat事件体"""
-    raw: dict = dict(event.message_obj.raw_message)
+    raw: dict = event.message_obj.raw_message
     if raw.get('group_id'):
         return {
             'self_id': raw.get('self_id'),

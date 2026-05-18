@@ -330,8 +330,9 @@
         "items": {
             "info日志": {
                 "type": "bool",
-                "description": "使用info代替debug日志，方便调试",
-                "default": false
+                "description": "使用info代替debug日志",
+                "default": false,
+                "hint": "使用info代替debug日志，方便调试"
             }
         }
     }

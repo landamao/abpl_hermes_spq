@@ -1,8 +1,7 @@
 # 🧠 纳西妲 × Hermes — 即时智能与深度思考的终极桥梁
 
-> **当 AstrBot 的即时响应生态，遇上 Hermes 的自主 Agent 能力。**
->
-> 这不是一个简单的适配器。这是两套 AI 范式之间的**双向神经接口**，让轻量级对话模型与重量级自主 Agent 在 QQ 群聊中实现无缝协同。
+> **当 AstrBot 的插件生态，遇上 Hermes 的自主 Agent 能力。**  
+> 这不是一个简单的适配器，而是一套**双核 AI 协同系统**——让轻量级响应与深度任务执行在 QQ 群中无缝融合，实现 1+1 > 2 的智能体验。
 
 ---
 
@@ -27,21 +26,18 @@
 
 ## 🔮 核心愿景：AI 双模型协同的终极形态
 
-你是否有过这样的困扰？
+传统 QQ 机器人 + AI 方案只有“聊天”这一种形态：
 
-- LLM 聊天机器人能说会道，但遇到“帮我写个爬虫”、“分析这个群一周的聊天记录”就束手无策；
-- Agent 框架能执行复杂任务，却缺少丰富的即时交互能力——点歌、表情包、宠物养成、群管理；
-- 两者各有所长，但从不互通，用户只能二选一。
+- **AstrBot**：拥有丰富的即时交互能力——点歌、表情包、宠物养成、群管理……但无法执行复杂多步骤任务。
+- **Hermes Agent**：具备代码执行、网页浏览、持久记忆、定时任务等深度能力，但缺少与 QQ 生态的亲密互动。
 
-**而这个适配器，打破了这个边界。**
-
-它让 AstrBot（轻量级对话 AI + 丰富插件生态）和 Hermes（深度 Agent，具备代码执行、网页浏览、持久记忆等能力）不再是两个孤岛，而是一个**协同工作的双核 AI 系统**。
+**这个适配器彻底打破边界**：让两者不再是孤岛，而是一个**协同工作的双核 AI 系统**——AstrBot 处理即时轻量任务，Hermes 处理深度复杂任务，并且**互相调用对方的能力**。
 
 ---
 
 ## ⚡ 双向神经接口架构
 
-这不是简单的“消息转发”。这是一个**完整的双向通信与能力代理系统**。
+这不是简单的“消息转发”，而是一个**完整的双向通信与能力代理系统**。
 
 ```
                     ┌─────────────────────────────┐
@@ -79,11 +75,10 @@
 │     将复杂请求转化为多步骤执行计划，自主完成并返回结果       │
 └─────────────────────────────────────────────────────────┘
 ```
+
 ---
 
 ## 🎯 杀手级能力矩阵
-
-### 这才是“1+1>2”的真正含义：
 
 | 维度 | AstrBot 提供 | Hermes 提供 | 协同效果 |
 |------|-------------|-------------|----------|
@@ -96,24 +91,23 @@
 | ⏰ **自动化** | — | 定时任务 | 每日自动群活跃度报告、天气预报 |
 | 🔧 **执行** | 所有插件指令 | 调用 AstrBot API | Agent 可调用点歌、画图、群管理等 50+ 内置指令 |
 
-### 三个让一切成为可能的核心功能：
+### 三大核心引擎
 
-**① 智能消息路由与分流**
+#### ① 智能消息路由与分流
+- 支持**关键词触发**、**@触发**、**引用唤醒**、**指令前缀触发**、**全量转发**（私聊）等多种模式
+- **冲突处理策略**：当 LLM 和 Hermes 都想回答时，可选择：
+  - `只用Hermes`：拦截 LLM，仅 Hermes 回答（避免重复）
+  - `不使用Hermes`：仅本地 LLM 处理
+  - `都处理`：双模型同时响应
+- **双重白名单**：群白名单 + 用户白名单，私聊独立控制，安全灵活
 
-- 支持关键词触发、@触发、全量转发三种模式
-- **可配置冲突策略**：当 LLM 和 Hermes 都想回答时——
-  - `hermes_only`：拦截 LLM，仅 Hermes 回答（避免重复）
-  - `llm_only`：仅本地 LLM 处理
-  - `both`：双模型同时响应
-- 群/用户双重白名单，私聊自动识别，安全保障
-
-**② 指令代理引擎**
-
-Hermes 可以像用户一样调用 AstrBot 的所有指令。不是“模拟”，而是**直接调用 AstrBot 内部的指令处理器**：
+#### ② 指令代理引擎（v6.0 重大更新）
+Hermes 可以像用户一样调用 AstrBot **所有插件的指令**——不是模拟，而是**直接调用 AstrBot 内部的指令处理器**，自动匹配群聊/私聊上下文，执行结果实时返回。
 
 ```bash
 # Hermes 发起一个 HTTP 请求，AstrBot 就像收到了一条真实指令
-curl -X POST http://127.0.0.1:8567/api/execute \
+curl -X POST http://127.0.0.1:6700/api/execute \
+  -H "Authorization: Bearer your_token" \
   -H "Content-Type: application/json" \
   -d '{
     "command": "点歌",
@@ -122,19 +116,19 @@ curl -X POST http://127.0.0.1:8567/api/execute \
   }'
 ```
 
-支持指令分类查询、别名解析、黑白名单控制，安全且灵活。
+支持指令扫描、缓存、别名解析、黑白名单控制，并提供完整的 REST API 供 Hermes 查询指令列表、执行指令。
 
-**③ LLM 工具集（AstrBot AI 可调用）**
-
-当 AstrBot 自身接入了 LLM（如 DeepSeek、ChatGPT），AI 可以主动调用三个工具：
+#### ③ LLM 工具集（AstrBot AI 可主动调用）
+当 AstrBot 自身接入了 LLM（如 DeepSeek、GPT），AI 可以主动调用四个工具：
 
 | 工具 | 能力 |
 |------|------|
 | `hermes_agent` | 让 Hermes 执行任意任务或指令 |
-| `hermes_status` | 查询 Agent 运行状态 |
-| `hermes_list_commands` | 获取可用指令菜单 |
+| `execute_command` | 执行任意 AstrBot 插件指令（由 LLM 自主决定） |
+| `hermes_status` | 查询 Agent 运行状态（连接、缓存等） |
+| `list_commands` | 获取所有可用指令菜单 |
 
-→ 这意味着 AstrBot 的 AI 自己就能判断“这件事我搞不定，让 Hermes 来”，然后自动调用。
+→ AstrBot 的 AI 可以自己判断“这件事我搞不定，让 Hermes 来”，然后自动调用工具，实现真正的智能分工。
 
 ---
 
@@ -172,22 +166,21 @@ Hermes 定时任务（每天早上 9:00）：
 ```
 ⏰ Agent 的定时能力 + AstrBot 的群聊能力 = 全自动运营。
 
-### 场景四：群管理智能化
+### 场景四：LLM 主动调用指令
 ```
-用户：@机器人 最近广告号好多，帮我清理一下
-→ Hermes Agent 调取最近 1000 条消息
-→ 分析发言模式，识别可疑账号
-→ 调用 AstrBot 群管理指令，自动拉黑
-→ 返回处理报告：已清理 3 个广告号
+用户：看看我有什么未签到的地方
+→ AstrBot LLM 判断需要查询多个插件
+→ 自动调用 list_commands 获取指令列表
+→ 调用 execute_command 执行“签到”指令
+→ 返回结果
 ```
-🛡️ AI 参与群管理，从“规则过滤”升级为“智能研判”。
+🤖 LLM 不再只是复读机，而是能**主动操作机器人功能**的智能体。
 
 ---
 
 ## 🛠️ 技术亮点
 
 ### 生产级稳定性
-
 - **WebSocket 长连接**：自动重连，指数退避，连接状态实时监控
 - **OneBot v11 标准兼容**：消息格式严格遵循标准，与任何 OneBot 实现互通
 - **完整的安全体系**：
@@ -198,28 +191,38 @@ Hermes 定时任务（每天早上 9:00）：
   - `/approve` `/deny` 权限控制
 
 ### 零外部依赖
-
 不依赖 HTTP Platform、LLM Executor 等任何第三方插件。纯独立实现，即装即用。
 
 ### 多模型兼容
-
 无论 Hermes 接的是什么底层模型（GPT-4、DeepSeek、Qwen、本地模型），无论 AstrBot 用的是哪个 LLM，适配器都作为**协议层**工作，完全解耦。
 
 ---
 
 ## 📡 完整 API 矩阵
 
-适配器暴露了完整的 RESTful API，让 Hermes 可以：
+适配器暴露了完整的 RESTful API（默认端口 `6700`），让 Hermes 可以：
 
-| 端点 | 能力 |
-|------|------|
-| `GET /api/health` | 健康检查 + 连接状态 |
-| `GET /api/commands` | 获取所有指令列表 |
-| `GET /api/commands/for_hermes` | 为 Agent 优化的分类指令清单 |
-| `GET /api/command/<name>` | 查询单个指令详情（参数、权限） |
-| `POST /api/execute` | 执行任意 AstrBot 指令 |
-| `POST /api/send` | 主动向群聊或私聊发送消息 |
-| `GET /api/stats` | 运行统计 |
+| 端点 | 方法 | 能力 |
+|------|------|------|
+| `GET /api/health` | GET | 健康检查 + 连接状态 + 指令缓存数量 |
+| `GET /api/commands` | GET | 获取所有指令列表（按插件分组） |
+| `GET /api/commands/for_hermes` | GET | 为 Agent 优化的扁平指令清单，含描述和插件名 |
+| `GET /api/command/{name}` | GET | 查询单个指令详情（别名、权限、示例） |
+| `POST /api/execute` | POST | 执行任意 AstrBot 指令（需 Bearer Token） |
+
+**执行请求示例**：
+```json
+POST /api/execute
+{
+  "command": "点歌",
+  "args": "晴天",
+  "group_id": "123456789",
+  "user_id": "987654321",
+  "user_name": "用户昵称"
+}
+```
+
+响应中包含执行结果（文本、图片、发送状态）。
 
 ---
 
@@ -230,22 +233,36 @@ Hermes 定时任务（每天早上 9:00）：
 | 指令 | 功能 |
 |------|------|
 | `/hermes status` | 查看适配器状态（WebSocket 连接、缓存、统计） |
-| `/hermes test` | 测试与 Hermes 的连通性 |
+| `/approve` / `/deny` | 权限审批（配合授权配置使用） |
+
+> 注：指令前缀可在配置中自定义（默认 `/`），支持中文映射（`/同意` → `/approve`）。
 
 ---
 
 ## ⚙️ 灵活的配置哲学
 
-27 个细粒度配置项，覆盖所有使用场景：
+共 **27 个细粒度配置项**，覆盖所有使用场景（完整配置参见 `_conf_schema.json`）：
 
-- 想严格管控？设置群白名单 + 用户白名单 + 指令黑名单 + API Token
-- 想开放体验？全部留空，配合冲突策略调优
-- 想全量智能？开启 `forward_all_messages`，让 Agent 感知所有群聊
+| 配置分类 | 关键项 | 说明 |
+|----------|--------|------|
+| **连接配置** | `Hermes WebSocket 地址` | Hermes WebSocket 地址 |
+| | `消息发送方式` | “框架已有的WebSocket” 或 “NapCat Http 服务器” |
+| | `开启反向HTTP` | 开启后，适配器作为 HTTP 服务器接收 NapCat 请求（实现敏感词过滤） |
+| **过滤配置** | `允许的群组` / `允许的用户` | 白名单，`all` 或 `admin` 通配 |
+| | `引用唤醒` / `艾特机器人触发` | 唤醒方式 |
+| | `触发关键词` | 自定义关键词列表 |
+| | `同时唤醒处理方式` | `只用Hermes` / `不使用Hermes` / `都处理` |
+| **授权配置** | `允许approve的用户` | 谁能使用 `/approve` |
+| | `自定义指令前缀` | 修改指令前缀，避免与框架冲突 |
+| **emoji配置** | `回复消息贴表情` / `转发时贴表情` | 自动贴表情回应 |
+| **脱敏配置** | `敏感字符列表` | 自动过滤 Hermes 回复中的敏感信息（如 API Key） |
+| | `自动添加密钥` | 自动从框架配置和 Hermes 配置中读取 token 并加入过滤 |
+| **指令配置** | `启用指令HTTP服务器` | 是否开启 `/api/execute` 端点 |
+| | `指令白名单` / `指令黑名单` | 限制 Hermes 可调用的指令 |
 
-**冲突处理模式**是点睛之笔：
-- `hermes_only` — Agent 优先，避免重复回答
-- `llm_only` — 本地优先，节省 Agent 资源
-- `both` — 双模型齐上，适合测试对比
+- 想严格管控？设置群白名单 + 用户白名单 + 指令黑名单 + API Token  
+- 想开放体验？全部留空，配合冲突策略调优  
+- 想全量智能？私聊开启 `私聊转发所有消息`，让 Agent 感知所有对话
 
 ---
 
@@ -253,13 +270,17 @@ Hermes 定时任务（每天早上 9:00）：
 
 ```
 Hermes适配器/
-├── main.py              # 主入口，生命周期管理、LLM工具注册
-├── message_handler.py   # 智能消息监听、OneBot事件体构造
-├── http_server.py       # 完整 HTTP API 服务器
-├── command_cache.py     # 指令缓存引擎（别名解析、分类索引）
-├── onebot_api.py        # OneBot API 调用封装
-├── ws_client.py         # WebSocket 客户端（自动重连）
-└── metadata.yaml        # 插件元数据
+├── main.py                 # 主入口，生命周期管理、LLM 工具注册、WebSocket 客户端
+├── command_manager.py      # 指令管理器：扫描、缓存、执行框架所有插件指令
+├── http_server.py          # 指令执行 HTTP 服务器（/api/execute 等端点）
+├── napcat_send.py          # 统一消息发送层（支持框架 WebSocket 和 NapCat HTTP）
+├── reverse_http.py         # 反向 HTTP 服务器（代理 NapCat 请求，实现敏感词过滤）
+├── message_id.py           # 消息 ID 缓存（用于引用唤醒）
+├── Tools.py                # 静态工具函数（文本提取、艾特解析、权限判断等）
+├── logger.py               # 日志封装（支持动态切换 debug/info）
+├── metadata.yaml           # 插件元数据
+├── requirements.txt        # 依赖：aiohttp, websockets, pyyaml
+└── _conf_schema.json       # 配置结构定义
 ```
 
 每个模块职责清晰，易于维护和二次开发。
@@ -271,23 +292,19 @@ Hermes适配器/
 ```bash
 # 1. 复制插件到 AstrBot
 cp -r hermes_adapter /root/AstrBot/data/plugins/
-```
-```bash
+
 # 2. 安装依赖
-pip install aiohttp websockets
-```
-```bash
+pip install aiohttp websockets pyyaml
+
 # 3. 启动 Hermes 网关
 hermes gateway restart
-```
-```
+
 # 4. 重启 AstrBot
-# 5. 在 AstrBot WebUI 中配置 Hermes 地址
-# hermes_ws_url: ws://127.0.0.1:6701
-# 完成。你的群聊现在拥有了双核 AI。
+# 5. 在 AstrBot WebUI 中配置 Hermes 地址（hermes_ws_url: ws://127.0.0.1:6701）
+# 6. 完成。你的群聊现在拥有了双核 AI。
 ```
 
-> ⚠️ **如果你还没有安装 Hermes 或 OneBot 适配器，请务必查看 [详细操作指引（从零开始）](#-详细操作指引从零开始) 完成基础环境搭建。**
+> ⚠️ **如果你还没有安装 Hermes 或 QQ OneBot 适配器，请务必查看下方详细指引。**
 
 ---
 
@@ -298,7 +315,7 @@ hermes gateway restart
 - 已安装本插件到AstrBot
 
 ### 第一步：安装 Hermes Agent 本体
-如果你还没有安装 Hermes，请先访问 **[Hermes Agent 官方仓库](https://github.com/NousResearch/hermes-agent)**，按照其中的说明进行安装。
+如果你还没有安装 Hermes，请先访问 **[Hermes Agent 官方仓库](https://github.com/NousResearch/hermes-agent)**，按照其中的说明进行安装并配置AI。
 
 ### 第二步：安装 Hermes QQ OneBot 适配器
 Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)** 进行桥接。
@@ -318,37 +335,24 @@ Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台
 hermes gateway restart   # 或根据其文档使用特定命令
 ```
 
-### 第四步：在 NapCat 中配置 HTTP 服务器
-本适配器有一个内置的 HTTP API 服务器，需要与 NapCat 配合使用，以便 Hermes 可以调用 AstrBot 的插件指令。
-
-1. 打开 NapCat 的 `config.yaml` 或 WebUI。
-2. 添加一个 HTTP 服务器，地址填写：
-   - 如果 NapCat 与本插件部署在同一台机器：`http://127.0.0.1:8567` （对应本插件的 `http_server_addr`，默认 `0.0.0.0:8567`）
-   - 如果跨机器，请使用实际 IP。
-3. 注意连接token配置
-
-### 第五步：配置本插件的连接信息
+### 第四步：配置本插件的连接信息
 打开 AstrBot WebUI，找到 “Hermes适配器” 插件配置页面
 
 - **`Hermes WebSocket 地址`**：填写 `ws://127.0.0.1:6701`（与第二步中 Hermes OneBot 适配器的 WebSocket 端口一致）
-- **`OneBot API 地址`**：填写 NapCat 的 HTTP API 地址，例如 `http://127.0.0.1:5700`
-- **`HTTP 服务器端口`**：供Hermes使用，你可以教Hermes使用
+- **`HTTP 指令服务器端口`**：供Hermes使用，你可以让Hermes Agent学习使用
 - 根据需求设置消息过滤规则（关键词、白名单等）
 
-### 第六步：启动并验证连接
-1. 重启 AstrBot 或重新加载插件。
+### 第五步：启动并验证连接
+1. 重启 AstrBot 或重载插件。
 2. 在 AstrBot 日志中查找以下关键输出：
    - `"正在连接到 Hermes: ws://127.0.0.1:6701"`
    - `"WebSocket 已连接到 Hermes"`
-3在 QQ 群中发送配置好的触发关键词，例如 “纳西妲 你好”，观察 Hermes 是否在思考，是否返回回复。
-
-### 第七步：配置 Hermes 模型
-- 根据Hermes官方文档操作
+3. 在 QQ 群中发送配置好的触发关键词，例如 “纳西妲 你好”，观察 Hermes 是否在思考，是否返回回复。
 
 至此，双核协同系统部署完成。你可以测试：
 - 简单指令（点歌、宠物）由 AstrBot 直接处理
 - 复杂任务（写脚本、爬取信息）由 Hermes Agent 自主执行
-- 通过 `/hermes status` 查看运行状态
+- 发送 `/status`（根据你配置的指令前缀） 查看Hermes运行状态
 
 > 💡 提示：如果连接失败，请检查防火墙、端口是否被占用，以及 Hermes OneBot 适配器的 WebSocket 地址与端口是否与本插件配置完全一致。
 
@@ -362,6 +366,8 @@ hermes gateway restart   # 或根据其文档使用特定命令
 | v2.0 | WebSocket 完全重写，指令缓存引擎 |
 | v3.0 | LLM 工具集、审批流程、消息去重 |
 | v3.4 | 私聊支持、全面稳定 |
+| v6.0 | **指令代理引擎回归**：完整指令管理器 + HTTP API + LLM 工具 `execute_command` |
+| v6.1 | 反向 HTTP 服务器、敏感字符过滤增强、自动添加 Hermes 配置中的 api_key |
 
 ---
 
@@ -369,11 +375,12 @@ hermes gateway restart   # 或根据其文档使用特定命令
 
 内置多层防护：
 
-1. **API 层**：Bearer Token 认证
-2. **传输层**：WebSocket Access Token
-3. **指令层**：黑/白名单（禁止执行 `重启`、`关机` 等敏感指令）
-4. **用户层**：群白名单 + 用户白名单
+1. **API 层**：Bearer Token 认证（`http指令服务器token`）
+2. **传输层**：WebSocket Access Token（`hermes_token`）
+3. **指令层**：黑/白名单（防止执行 `重启`、`关机` 等敏感指令）
+4. **用户层**：群白名单 + 用户白名单（`允许的群组` / `允许的用户`）
 5. **审批层**：`/approve` `/deny` 权限用户限定
+6. **脱敏层**：自动过滤所有回复中的敏感信息（API Key、Token 等）
 
 ---
 
@@ -399,6 +406,8 @@ hermes gateway restart   # 或根据其文档使用特定命令
 
 **快任务走快通道，慢任务走深通道，能力互通，用户无感。**
 
+更重要的是，**AstrBot 自身的 LLM 也可以主动调用 Hermes 和所有插件指令**——AI 不再是被动应答，而是能自主编排任务、调用工具的智能中枢。
+
 ---
 
 **让 AI 不再只会聊天。让 Agent 不再远离人群。**
@@ -406,14 +415,13 @@ hermes gateway restart   # 或根据其文档使用特定命令
 **这就是 Hermes × AstrBot 双向协同适配器。**
 
 ---
+
 ## 🔗 相关链接
 
-- [Hermes Agent GitHub](https://github.com/NousResearch/hermes-agent)  
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent)  
 - [Hermes QQ OneBot 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)
-- [插件GitHub仓库](https://github.com/landamao/abpl_hermes_spq)
+- [插件 GitHub 仓库](https://github.com/landamao/abpl_hermes_spq)
 
-
-*最后修改：2026-04-24*  
 *作者：懒大猫*
 
 ## 许可证

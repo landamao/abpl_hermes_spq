@@ -228,8 +228,8 @@ class NapCatSend:
             url = self.NapCat_api_url + '/' + action
             async with self.http会话.post(url, json=params) as resp:
                 结果 = await resp.json()
-            结果['echo'] = echo
             logger.debug(f"[Hermes适配器] API 响应: {action} -> {结果}")
+            结果['echo'] = echo
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 结果
             MessageId.add(结果)
