@@ -6,7 +6,6 @@ class HemresWsClient:
 
     def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend):
         self.ws已连接 = False
-        self.ws已连接 = True
         self.ws重连延迟 = 1.0
         self.NapCatSend = napcat_send
         self.ws任务 = None
