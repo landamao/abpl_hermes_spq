@@ -137,6 +137,8 @@ class Hermes适配器(Star):
 
         raw:dict = event.message_obj.raw_message
         self.event[0] = event  #此event可以是任意AiocqhttpMessageEvent
+        if not self.ws已连接:
+            return
         群号 = str(raw.get('group_id', ""))
         if 群号:
             if 群号 not in self.群事件:
@@ -183,6 +185,19 @@ class Hermes适配器(Star):
         try:
             if not self.ws已连接:
                 return "Hermes Agent 未连接，请稍后再试"
+            raw: dict = event.message_obj.raw_message
+            群号 = str(raw.get('group_id', ""))
+            qq = str(raw.get('user_id', ""))
+            if task.startswith((self.自定义指令前缀, "/")):
+                return "禁止使用此方式发送指令"
+            if 群号:
+                if not all判断(self.允许的群组, 群号):
+                    return "该用户未授权使用Hermes，Agent，请联系管理员"
+                if not all判断(self.允许的用户, qq):
+                    return "该用户未授权使用Hermes，Agent，请联系管理员"
+            else:
+                if not all判断(self.私聊允许的用户, qq):
+                    return "该用户未授权使用Hermes，Agent，请联系管理员"
             NapCat事件体 = 构造文本NapCat事件体(event, task)
             await self.发送ws消息(NapCat事件体)
             return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
@@ -502,5 +517,5 @@ class Hermes适配器(Star):
 
 
 # 该类方法都依赖该类实例各种方法，无法拆分
-
+# 异步单线程
 # 开源免费，用户使用自己找茬作死（例如端口填写超出范围），概不考虑

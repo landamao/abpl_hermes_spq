@@ -196,6 +196,18 @@
                 "description": "自定义指令前缀",
                 "default": "/",
                 "hint": "留空代表使用默认`/`，自定义Hermes的指令前缀，可避免与框架冲突"
+            },
+            "自动艾特用户": {
+                "type": "string",
+                "description": "授权自动艾特",
+                "default": "",
+                "hint": "群聊自动艾特，留空代表不艾特，仅支持填一个qq"
+            },
+            "触发艾特关键词": {
+                "type": "list",
+                "description": "触发艾特关键词",
+                "default": ["Dangerous command requires approval", "需要审批的危险命令"],
+                "hint": "当消息中有这些关键词触发自动艾特，清空恢复默认"
             }
         }
     },
@@ -302,7 +314,7 @@
             "指令HTTP服务器端口": {
                 "type": "int",
                 "description": "指令HTTP服务器监听端口",
-                "default": "6700"
+                "default": 6700
             },
             "http指令服务器token": {
                 "type": "string",

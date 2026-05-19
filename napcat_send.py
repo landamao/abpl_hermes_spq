@@ -63,6 +63,20 @@ class NapCatSend:
             self._加载Hermes配置()
             self.config['脱敏配置']['敏感字符列表'] = [str(i).strip() for i in self.敏感字符列表 if str(i).strip()]
             self.敏感字符列表 = self.config['脱敏配置']['敏感字符列表']
+        self.自动艾特用户 = config['授权配置']['自动艾特用户'].strip()
+        if not self.自动艾特用户:
+            self.自动艾特用户 = 0
+        try:
+            self.自动艾特用户 = int(config['授权配置']['自动艾特用户'])
+        except (TypeError, ValueError):
+            logger.error("[Hermes适配器] 自动艾特用户请填写整数qq号")
+            self.自动艾特用户 = False
+        self.触发艾特关键词:list = config['授权配置']['触发艾特关键词']
+        if not self.触发艾特关键词:
+            config['授权配置']['触发艾特关键词'] = self.触发艾特关键词 = ["Dangerous command requires approval"]
+
+        logger.debug(f"自动艾特用户：{self.自动艾特用户}")
+        logger.debug(f"触发关键词：{self.触发艾特关键词}")
 
     def _加载api密钥(self):
         """从 AstrBot cmd_config.json 自动加载 API 密钥到敏感字符列表"""
@@ -180,6 +194,7 @@ class NapCatSend:
     async def 发送data消息到NapCat(self, data:dict) -> dict:
         """所有发送消息到NapCat统一接口"""
         data = self.数据文本脱敏(data)
+        data = self.自动艾特(data)
         if self.消息发送方式 == "框架已有的WebSocket":
             结果 = await self._通过框架发送消息到NapCat(data)
         elif self.消息发送方式 == "NapCat Http 服务器":
@@ -241,12 +256,68 @@ class NapCatSend:
             logger.error(f"[Hermes适配器] API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             return {"echo": echo, "status": "failed", "retcode": 100, "msg": str(e), "data": None}
 
+    def 自动艾特(self, data: dict) -> dict:
+        """将数据增加自动艾特"""
+        if not self.自动艾特用户:  # 单个int qq号
+            return data
+        if not ( "action" in data and "params" in data) :
+            return data
+        action = data['action']
+        params = data['params']
+        if action not in ("send_group_msg", "send_msg"):
+            return data
+        # 仅在群聊中启用自动艾特（私聊通常不需要）
+        if action == "send_msg":
+            if not params.get('group_id'):
+                return data
+        消息组 = params.get('message')
+        if not 消息组:
+            return data
+
+        # 检查消息中是否包含触发关键词
+        包含关键词 = False
+        if isinstance(消息组, str):
+            if any( i in 消息组 for i in self.触发艾特关键词 ):
+                包含关键词 = True
+        elif isinstance(消息组, list):
+            for 组件 in 消息组:
+                if 组件.get('type') == 'text':
+                    text = 组件.get('data', {}).get('text', '')
+                    if any( i in text for i in self.触发艾特关键词 ):
+                        包含关键词 = True
+                        break
+        if not 包含关键词:
+            return data
+
+        # 构造艾特消息段
+        艾特段 = {"type": "at", "data": {"qq": self.自动艾特用户}}
+
+        # 修改 message
+        if isinstance(消息组, str):
+            new_message = [艾特段, {"type": "text", "data": {"text": 消息组}}]
+        else:  # list
+            new_message = [艾特段] + 消息组
+        params['message'] = new_message
+
+        # 同步更新 raw_message（添加CQ码格式的艾特）
+        raw_message = params.get('raw_message')
+        if raw_message is not None:
+            at_cq = f"[CQ:at,qq={self.自动艾特用户}]"
+            params['raw_message'] = at_cq + raw_message
+
+        logger.debug(f"[Hermes适配器] 自动艾特：在消息中添加@用户{self.自动艾特用户}")
+
+        return data
+
+
     def 数据文本脱敏(self, data:dict) -> dict:
         """对data中的文本进行脱敏，替换敏感字符"""
         if not self.敏感字符列表:
             return data
 
-        params = data.get('params', {})
+        if "params"not in data:
+            return data
+        params = data['params']
         message = params.get('message')
         if message is None:
             return data
