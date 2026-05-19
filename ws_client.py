@@ -72,6 +72,7 @@ class HemresWsClient:
             self.ws服务 = ws
 
             logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
+            self.ws已连接 = True
 
             await self.发送ws消息({
                 "type": "connect",

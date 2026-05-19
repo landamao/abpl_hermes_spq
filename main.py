@@ -145,6 +145,7 @@ class Hermes适配器(Star):
                 self.私聊事件[qq] = event
 
         if not self.ws.ws已连接:
+            logger.debug(f"[Hermes适配器] Hermes WebSocket 未连接")
             return
 
         转发, data = await self.检查转发到Hermes(event)
