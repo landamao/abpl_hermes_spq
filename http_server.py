@@ -15,11 +15,12 @@ import time
 from aiohttp import web
 from . import logger
 from urllib.parse import urlparse
+from .napcat_send import NapCatSend
 
 class 指令执行HTTP服务器:
     """指令执行 HTTP 服务器"""
 
-    def __init__(self, 指令管理器, napcat_send, config: dict):
+    def __init__(self, 指令管理器, napcat_send: NapCatSend, config: dict):
         self.指令管理器 = 指令管理器
         self.napcat_send = napcat_send
         self.config = config

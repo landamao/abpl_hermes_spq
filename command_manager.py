@@ -7,11 +7,11 @@ from astrbot.core.star.filter.command import CommandFilter
 from astrbot.core.star.filter.command_group import CommandGroupFilter
 from astrbot.core.star.filter.permission import PermissionTypeFilter
 from astrbot.core.star.star_handler import star_handlers_registry, StarHandlerMetadata
-
+from .napcat_send import NapCatSend
 class 指令管理器:
     """指令管理器 - 缓存、查找、验证、执行"""
 
-    def __init__(self, context, napcat_send, config: dict, 群事件, 私聊事件):
+    def __init__(self, context, napcat_send:NapCatSend, config: dict, 群事件, 私聊事件):
         self.context = context
         self.napcat_send = napcat_send
         self.config = config

@@ -7,7 +7,7 @@ from .message_id import MessageId
 
 
 class NapCatSend:
-    """所有发送到NapCat的消息都必须使用这个"""
+    """所有NapCat统一请求模块"""
 
     def __init__(self, config:AstrBotConfig, event:list[AiocqhttpMessageEvent]):
         self.config = config
@@ -78,63 +78,6 @@ class NapCatSend:
         logger.debug(f"自动艾特用户：{self.自动艾特用户}")
         logger.debug(f"触发关键词：{self.触发艾特关键词}")
 
-    def _加载api密钥(self):
-        """从 AstrBot cmd_config.json 自动加载 API 密钥到敏感字符列表"""
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.dirname(os.path.dirname(script_dir))
-            cmd_config_path = os.path.join(data_dir, 'cmd_config.json')
-            with open(cmd_config_path, 'r', encoding='utf-8-sig') as f:
-                cmd_config = json.load(f)
-            for source in cmd_config.get('provider_sources', []):
-                keys = source.get('key', [])
-                if isinstance(keys, str):
-                    keys = [keys]
-                self.敏感字符列表.extend(keys)
-            self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
-            self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-            logger.info(f"[Hermes适配器] 已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
-        except Exception as e:
-            logger.warning(f"[Hermes适配器] 自动读取 AstrBot 密钥失败: {e}")
-
-    def _加载Hermes配置(self):
-        """读取 Hermes config.yaml，提取所有 api_key 并加入敏感字符列表"""
-
-        def _递归提取api_key(data):
-            """递归提取数据中所有的 api_key 字段值"""
-            keys = []
-            if isinstance(data, dict):
-                for k, v in data.items():
-                    if k == "api_key":
-                        keys.append(v)
-                    keys.extend(_递归提取api_key(v))
-            elif isinstance(data, list):
-                for item in data:
-                    keys.extend(_递归提取api_key(item))
-            return keys
-
-        try:
-            if not os.path.exists(self.Hermes配置文件路径):
-                logger.warning(f"[Hermes适配器] Hermes 配置文件不存在: {self.Hermes配置文件路径}")
-                return
-            with open(self.Hermes配置文件路径, 'r', encoding='utf-8') as f:
-                config_data = yaml.safe_load(f)
-            if config_data is None:
-                return
-            hermes_keys = _递归提取api_key(config_data)
-            if hermes_keys:
-                # 合并到敏感字符列表并去重
-                self.敏感字符列表.extend(hermes_keys)
-                self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
-                self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-                logger.info(f"[Hermes适配器] 从 Hermes 配置中提取到 {len(hermes_keys)} 个 API Key，已加入敏感字符列表")
-            else:
-                logger.info("[Hermes适配器] Hermes 配置中未找到任何 api_key 字段")
-        except yaml.YAMLError as e:
-            logger.error(f"[Hermes适配器] 解析 YAML 失败: {e}")
-        except Exception as e:
-            logger.error(f"[Hermes适配器] 读取 Hermes 配置失败: {e}")
-
     async def 贴表情(self, mid: str|int|dict) -> dict:
         """给消息贴表情回应"""
         原mid = mid
@@ -203,6 +146,63 @@ class NapCatSend:
             logger.critical(f"意外未知的消息发送方式：{self.消息发送方式}\n原数据：{str(data)}")
             结果 = await self._通过框架发送消息到NapCat(data)
         return 结果
+
+    def _加载api密钥(self):
+        """从 AstrBot cmd_config.json 自动加载 API 密钥到敏感字符列表"""
+        try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            data_dir = os.path.dirname(os.path.dirname(script_dir))
+            cmd_config_path = os.path.join(data_dir, 'cmd_config.json')
+            with open(cmd_config_path, 'r', encoding='utf-8-sig') as f:
+                cmd_config = json.load(f)
+            for source in cmd_config.get('provider_sources', []):
+                keys = source.get('key', [])
+                if isinstance(keys, str):
+                    keys = [keys]
+                self.敏感字符列表.extend(keys)
+            self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
+            self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
+            logger.info(f"[Hermes适配器] 已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
+        except Exception as e:
+            logger.warning(f"[Hermes适配器] 自动读取 AstrBot 密钥失败: {e}")
+
+    def _加载Hermes配置(self):
+        """读取 Hermes config.yaml，提取所有 api_key 并加入敏感字符列表"""
+
+        def _递归提取api_key(data):
+            """递归提取数据中所有的 api_key 字段值"""
+            keys = []
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    if k == "api_key":
+                        keys.append(v)
+                    keys.extend(_递归提取api_key(v))
+            elif isinstance(data, list):
+                for item in data:
+                    keys.extend(_递归提取api_key(item))
+            return keys
+
+        try:
+            if not os.path.exists(self.Hermes配置文件路径):
+                logger.warning(f"[Hermes适配器] Hermes 配置文件不存在: {self.Hermes配置文件路径}")
+                return
+            with open(self.Hermes配置文件路径, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f)
+            if config_data is None:
+                return
+            hermes_keys = _递归提取api_key(config_data)
+            if hermes_keys:
+                # 合并到敏感字符列表并去重
+                self.敏感字符列表.extend(hermes_keys)
+                self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
+                self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
+                logger.info(f"[Hermes适配器] 从 Hermes 配置中提取到 {len(hermes_keys)} 个 API Key，已加入敏感字符列表")
+            else:
+                logger.info("[Hermes适配器] Hermes 配置中未找到任何 api_key 字段")
+        except yaml.YAMLError as e:
+            logger.error(f"[Hermes适配器] 解析 YAML 失败: {e}")
+        except Exception as e:
+            logger.error(f"[Hermes适配器] 读取 Hermes 配置失败: {e}")
 
     async def _通过框架发送消息到NapCat(self, data:dict) -> dict:
         """<说明>"""
