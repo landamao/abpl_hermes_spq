@@ -206,8 +206,14 @@
             "触发艾特关键词": {
                 "type": "list",
                 "description": "触发艾特关键词",
-                "default": ["Dangerous command requires approval", "需要审批的危险命令"],
-                "hint": "当消息中有这些关键词触发自动艾特，清空恢复默认"
+                "default": [
+                    "Dangerous command requires approval",
+                    "需要审批的危险命令",
+                    "⏳",
+                    "⚠️",
+                    "❌"
+                ],
+                "hint": "当消息中有这些关键词触发自动艾特，清空恢复默认，填“*”代表所有消息"
             }
         }
     },

@@ -49,7 +49,7 @@ class Hermes适配器(Star):
         def 解析all(l: list[str], ad=True) -> list[str]:
             """解析all和admin"""
             if "all" in l:
-                return ["all"]
+                return ["all"] # 先设置好，避免无意义遍历判断
             if ad and "admin" in l:
                 l.extend(管理员列表)
             return list(dict.fromkeys(l))

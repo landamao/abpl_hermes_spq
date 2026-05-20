@@ -75,10 +75,13 @@ class NapCatSend:
             self.自动艾特用户 = False
         self.触发艾特关键词:list = config['授权配置']['触发艾特关键词']
         if not self.触发艾特关键词:
-            config['授权配置']['触发艾特关键词'] = self.触发艾特关键词 = ["Dangerous command requires approval"]
+            config['授权配置']['触发艾特关键词'] = self.触发艾特关键词 = config.schema['授权配置']['items']['触发艾特关键词']['default']
 
-        logger.debug(f"自动艾特用户：{self.自动艾特用户}")
-        logger.debug(f"触发关键词：{self.触发艾特关键词}")
+        if "*" in self.触发艾特关键词:
+            self.触发艾特关键词 = ["*"] # 先设置好，避免无意义遍历判断
+
+        logger.info(f"自动艾特用户：{self.自动艾特用户}")
+        logger.info(f"触发关键词：{self.触发艾特关键词}")
 
     def set_event(self, event:AiocqhttpMessageEvent) -> None:
         """设置event"""
@@ -300,16 +303,19 @@ class NapCatSend:
 
         # 检查消息中是否包含触发关键词
         包含关键词 = False
-        if isinstance(消息组, str):
-            if any( i in 消息组 for i in self.触发艾特关键词 ):
-                包含关键词 = True
-        elif isinstance(消息组, list):
-            for 组件 in 消息组:
-                if 组件.get('type') == 'text':
-                    text = 组件.get('data', {}).get('text', '')
-                    if any( i in text for i in self.触发艾特关键词 ):
-                        包含关键词 = True
-                        break
+        if self.触发艾特关键词[0] == "*":
+            包含关键词 = True
+        else:
+            if isinstance(消息组, str):
+                if any( i in 消息组 for i in self.触发艾特关键词 ):
+                    包含关键词 = True
+            elif isinstance(消息组, list):
+                for 组件 in 消息组:
+                    if 组件.get('type') == 'text':
+                        text = 组件.get('data', {}).get('text', '')
+                        if any( i in text for i in self.触发艾特关键词 ):
+                            包含关键词 = True
+                            break
         if not 包含关键词:
             return data
 
