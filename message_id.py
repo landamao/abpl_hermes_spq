@@ -1,10 +1,12 @@
-from . import logger
+from .logger import logger
+
 class MessageId:
-    message_id_set:set = set()
+    _缓存: dict = {}          # 改用 dict 保持插入顺序
     记录消息ID = True
-    最大数量: int = 100000
+    最大数量: int = 10000
+
     @classmethod
-    def add(cls, mid:int|str|dict) -> None:
+    def add(cls, mid: int | str | dict) -> None:
         原mid = mid
         if not cls.记录消息ID:
             return
@@ -18,15 +20,21 @@ class MessageId:
         if not mid:
             logger.warning(f"[Hermes适配器] 记录消息ID未找到有效消息ID：{原mid}")
             return
-        cls.message_id_set.add(str(mid))
-        if len(cls.message_id_set) > cls.最大数量:
-            for _ in range(cls.最大数量//2):
-                cls.message_id_set.pop()  # 随机删除一个元素
+        # 使用 dict 存储，key 为消息ID，value 可任意（此处用 None）
+        cls._缓存[str(mid)] = None
+
+        # 超出最大数量时删除一半最旧的条目
+        if len(cls._缓存) > cls.最大数量:
+            # 要删除的数量：最大数量的一半（与原逻辑一致）
+            删除数 = cls.最大数量 // 2
+            old_keys = list(cls._缓存.keys())[:删除数]
+            for key in old_keys:
+                del cls._缓存[key]
 
     @classmethod
-    def has(cls, mid:int|str) -> bool:
-        return str(mid) in cls.message_id_set
+    def has(cls, mid: int | str) -> bool:
+        return str(mid) in cls._缓存
 
     @classmethod
     def clear(cls) -> None:
-        cls.message_id_set.clear()
+        cls._缓存.clear()

@@ -1,18 +1,19 @@
 import json, asyncio,websockets
 from .napcat_send import NapCatSend
 from .status import HermesStatus
-from . import logger
+from .logger import logger
 
-class HemresWsClient:
+class HermesWsClient:
 
     def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend):
         self.ws已连接 = False
-        self.ws重连延迟 = 1.0
+        self.ws重连延迟 = 5
         self.NapCatSend = napcat_send
         self.ws任务 = None
         self.hermes_ws_url = hermes_ws_url
         self.hermes_token = hermes_token
         self.ws服务 = None
+        self.机器人名字 = "纳西妲"
     # ========== Hermes WebSocket ==========
 
     async def ws开始(self):
@@ -77,6 +78,7 @@ class HemresWsClient:
             self.ws服务 = ws
 
             logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
+            logger.info(f"[Hermes适配器] 机器人名字：{self.机器人名字}")
             self.ws已连接 = True
             HermesStatus.ws连接次数 += 1
 

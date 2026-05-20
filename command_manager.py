@@ -24,7 +24,7 @@ class 指令管理器:
         try:
             self.指令前缀 = tuple(context.get_config()["wake_prefix"])[0]
         except Exception as e:
-            logger.error(f"【群唤醒增强】获取指令前缀失败，你可在代码里手动设置，使用默认值 '/': {e}")
+            logger.error(f"[Hermes适配器] 获取指令前缀失败，你可在代码里手动设置，使用默认值 '/': {e}")
             self.指令前缀 = "/"
 
         # 指令配置
@@ -52,11 +52,11 @@ class 指令管理器:
         跳过插件 = {"astrbot", "Hermes适配器"}
         模块到插件 = {}
         for 插件 in 所有插件:
-            插件名 = getattr(插件, "name", "未知插件")
+            指令名 = getattr(插件, "name", "未知插件")
             模块路径 = getattr(插件, "module_path", None)
-            if 插件名 in 跳过插件 or not 模块路径:
+            if 指令名 in 跳过插件 or not 模块路径:
                 continue
-            模块到插件[模块路径] = (插件, 插件名)
+            模块到插件[模块路径] = (插件, 指令名)
 
         for 处理器 in star_handlers_registry:
             if not isinstance(处理器, StarHandlerMetadata):
@@ -66,7 +66,7 @@ class 指令管理器:
             if not 插件信息:
                 continue
 
-            插件实例, 插件名 = 插件信息
+            插件实例, 指令名 = 插件信息
             指令名 = None
             别名 = []
             description = 处理器.desc or "无描述"
@@ -88,7 +88,7 @@ class 指令管理器:
                 self.处理器缓存[指令名] = {
                     "command": 指令名,
                     "description": description,
-                    "plugin": 插件名,
+                    "plugin": 指令名,
                     "aliases": 别名,
                     "is_admin": 管理员权限,
                     "handler": 处理器,
@@ -101,8 +101,8 @@ class 指令管理器:
 
         # 构建快速查找集合
         self.所有指令集合 = set()
-        for 插件名 in self.处理器缓存:
-            self.所有指令集合.add(插件名.lower())
+        for 指令名 in self.处理器缓存:
+            self.所有指令集合.add(指令名.lower())
         for alias in self.别名到指令:
             self.所有指令集合.add(alias.lower())
 
@@ -172,7 +172,8 @@ class 指令管理器:
             return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False,
                     'error': f'未找到指令: {command}。可用指令: {", ".join(available)}'}
         if 处理器信息['is_admin']:
-            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员权限，不允许通过此方法执行"}
+            # 管理员指令一刀切拒绝，避免未知风险
+            return {'texts': [], 'images': [], 'other': [], 'sent': 0, 'success': False, 'error': "该指令需要管理员权限，不允许通过此方法执行，请联系管理员手动执行"}
 
         return await self._执行指令(处理器信息, args, user_id, user_name, group_id, event)
 

@@ -1,18 +1,20 @@
-from astrbot.api import logger
+from astrbot.api import logger as her_logger
 
-debug = logger.debug
+class logger:
+    """动态修改日志级别， 避免调试时与大量debug混在一起"""
+    debug = her_logger.debug
 
-info = logger.info
+    info = her_logger.info
 
-warning = logger.warning
+    warning = her_logger.warning
 
-error = logger.error
+    error = her_logger.error
 
-critical = logger.critical
+    critical = her_logger.critical
 
-def 设置info日志(b:bool=False) -> None:
-    global debug
-    if b:
-        debug = logger.info
-    else:
-        debug = logger.debug
+    @classmethod
+    def 设置info日志(cls, 开启:bool=False) -> None:
+        if 开启:
+            cls.debug = her_logger.info
+        else:
+            cls.debug = her_logger.debug

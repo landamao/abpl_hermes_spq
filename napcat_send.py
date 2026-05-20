@@ -2,7 +2,7 @@ import os, json, yaml, random, aiohttp
 from aiocqhttp import ActionFailed
 from astrbot.api.all import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from . import logger
+from .logger import logger
 from .message_id import MessageId
 from .status import HermesStatus
 
@@ -10,9 +10,9 @@ from .status import HermesStatus
 class NapCatSend:
     """所有NapCat统一请求模块"""
 
-    def __init__(self, config:AstrBotConfig, event:list[AiocqhttpMessageEvent]):
+    def __init__(self, config:AstrBotConfig):
         self.config = config
-        self.event = event
+        self.event:AiocqhttpMessageEvent|None = None
         连接配置: dict = config['连接配置']
         self.消息发送方式: str = 连接配置['消息发送方式'].strip()
         if self.消息发送方式 == "NapCat Http 服务器":
@@ -40,8 +40,10 @@ class NapCatSend:
                     .replace(' ', '').replace('\t', '').replace('，', ','))
             parts = [i for i in 清理后.split(',') if i]
             self.贴表情列表: tuple = tuple(map(int, parts))
-            config['emoji配置']['贴表情列表'] = '，'.join(map(str, self.贴表情列表))
-            config.save_config()
+            规范后 = '，'.join(map(str, self.贴表情列表))
+            if emoji配置['贴表情列表'] != 规范后:
+                config['emoji配置']['贴表情列表'] = 规范后
+                config.save_config()
         except Exception as e:
             贴表情列表 = config.schema['emoji配置']['items']['贴表情列表']['default']
             清理后 = (贴表情列表.replace('\n', '').replace('\r', '')
@@ -65,10 +67,9 @@ class NapCatSend:
             self.config['脱敏配置']['敏感字符列表'] = [str(i).strip() for i in self.敏感字符列表 if str(i).strip()]
             self.敏感字符列表 = self.config['脱敏配置']['敏感字符列表']
         self.自动艾特用户 = config['授权配置']['自动艾特用户'].strip()
-        if not self.自动艾特用户:
-            self.自动艾特用户 = 0
+
         try:
-            self.自动艾特用户 = int(config['授权配置']['自动艾特用户'])
+            self.自动艾特用户 = int(self.自动艾特用户) if self.自动艾特用户 else 0
         except (TypeError, ValueError):
             logger.error("[Hermes适配器] 自动艾特用户请填写整数qq号")
             self.自动艾特用户 = False
@@ -78,6 +79,10 @@ class NapCatSend:
 
         logger.debug(f"自动艾特用户：{self.自动艾特用户}")
         logger.debug(f"触发关键词：{self.触发艾特关键词}")
+
+    def set_event(self, event:AiocqhttpMessageEvent) -> None:
+        """设置event"""
+        self.event = event
 
     async def 贴表情(self, mid: str|int|dict) -> dict:
         """给消息贴表情回应"""
@@ -120,11 +125,10 @@ class NapCatSend:
         Returns:
             发送结果"""
         from astrbot.api.all import Reply, MessageChain
-        event = self.event[0]
         # 过滤不兼容的嵌套 Reply 组件
         原消息链 = 消息链
         新消息链 = [c for c in 原消息链 if not isinstance(c, Reply)]
-        消息组 = await event._parse_onebot_json(MessageChain(chain=新消息链))
+        消息组 = await self.event._parse_onebot_json(MessageChain(chain=新消息链))
         # 重新插入干净的 Reply
         if 原消息链 and isinstance(原消息链[0], Reply):
             消息组.insert(0, {"type": "reply", "data": {"id": str(原消息链[0].id)}})
@@ -220,10 +224,9 @@ class NapCatSend:
         action = data.get('action', '')
         params = data.get('params', {})
         echo = data.get('echo')
-        bot = self.event[0].bot
         logger.debug("[Hermes适配器] 通过框架方法发送到NapCat")
         try:
-            结果 = await bot.call_action(action, **params)
+            结果 = await self.event.bot.call_action(action, **params)
             返回 = {"echo": echo, "status": "ok", "retcode": 0, "data": 结果 or {}}
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 返回

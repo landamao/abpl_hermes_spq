@@ -1,6 +1,6 @@
 from aiohttp import web
 from urllib.parse import urlparse
-from . import logger
+from .logger import logger
 from .napcat_send import NapCatSend
 from .status import HermesStatus
 

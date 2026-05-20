@@ -340,6 +340,12 @@
         "description": "其他配置",
         "type": "object",
         "items": {
+            "机器人名字": {
+                "type": "string",
+                "description": "机器人名字",
+                "default": "纳西妲",
+                "hint": "机器人名字"
+            },
             "info日志": {
                 "type": "bool",
                 "description": "使用info代替debug日志",

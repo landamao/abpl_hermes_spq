@@ -13,7 +13,7 @@
 import json
 import time
 from aiohttp import web
-from . import logger
+from .logger import logger
 from urllib.parse import urlparse
 from .napcat_send import NapCatSend
 
@@ -76,7 +76,7 @@ class 指令执行HTTP服务器:
     async def _handle_health(self, _: web.Request) -> web.Response:
         cmd_mgr = self.指令管理器
         napcat = self.napcat_send
-        event = napcat.event[0]
+        event = napcat.event
         return web.json_response({
             'status': 'ok',
             'service': 'hermes_adapter_command_server',

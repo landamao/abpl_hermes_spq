@@ -4,10 +4,10 @@ from astrbot.api.provider import LLMResponse
 from astrbot.api.all import Star, Context, AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from .Tools import *
-from . import logger
+from .logger import logger
 from .napcat_send import NapCatSend
 from .message_id import MessageId
-from .ws_client import HemresWsClient
+from .ws_client import HermesWsClient
 from .status import HermesStatus
 class Hermes适配器(Star):
     """中央管理器"""
@@ -15,7 +15,6 @@ class Hermes适配器(Star):
         logger.debug("[Hermes适配器] __init__开始")
         super().__init__(context)
         self.config: AstrBotConfig = config
-        self.event: list[AiocqhttpMessageEvent|None] = [None]  # 使用列表共享实时变化的event对象
         self.群事件:dict[str, AiocqhttpMessageEvent] = {}
         self.私聊事件:dict[str, AiocqhttpMessageEvent] = {}
 
@@ -91,7 +90,8 @@ class Hermes适配器(Star):
             ])
 
         MessageId.记录消息ID = self.引用唤醒
-        self.NapCatSend = NapCatSend(config, self.event)
+        self.NapCatSend = NapCatSend(config)
+        self.set_event = self.NapCatSend.set_event #节省性能，避免每次链式查找
 
         # 指令执行 HTTP 服务器配置
         指令配置: dict = config['指令配置']
@@ -119,7 +119,8 @@ class Hermes适配器(Star):
 
         self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
-        self.ws = HemresWsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
+        self.ws = HermesWsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
+        self.ws.机器人名字 = config['其他配置']['机器人名字']
 
         logger.debug("[Hermes适配器] __init__完成")
 
@@ -135,14 +136,14 @@ class Hermes适配器(Star):
             return
 
         raw:dict = event.message_obj.raw_message
-        self.event[0] = event  #此event可以是任意AiocqhttpMessageEvent
+
+        self.set_event(event)  #此event可以是任意AiocqhttpMessageEvent
+
         群号 = str(raw.get('group_id', ""))
         if 群号:
-            if 群号 not in self.群事件:
-                self.群事件[群号] = event
+            self.群事件[群号] = event
         else:
-            qq = str(raw.get('user_id', ""))
-            if qq not in self.私聊事件:
+            if qq := str(raw.get('user_id', "")):
                 self.私聊事件[qq] = event
 
         if not self.ws.ws已连接:

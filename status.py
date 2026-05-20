@@ -1,5 +1,5 @@
 import time
-from . import logger
+from .logger import logger
 
 
 class HermesStatus:

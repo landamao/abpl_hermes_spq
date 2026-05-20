@@ -69,46 +69,33 @@ def all判断(列表:list, lid:str):
     return lid in 列表
 
 
-def 构造文本NapCat事件体(event, 文本: str) -> dict:
+def 构造文本NapCat事件体(event, 文本: str, **kwargs) -> dict:
     """构造包含指定文本的NapCat事件体"""
     raw: dict = event.message_obj.raw_message
+    基础字段 = {
+        'self_id': raw.get('self_id'),
+        'user_id': raw.get('user_id'),
+        'time': raw.get('time'),
+        'message_id': raw.get('message_id'),
+        'message_seq': raw.get('message_seq'),
+        'real_id': raw.get('real_id'),
+        'real_seq': raw.get('real_seq'),
+        'message_type': raw.get('message_type'),
+        'sender': raw.get('sender'),
+        'raw_message': 文本,
+        'font': raw.get('font'),
+        'sub_type': raw.get('sub_type'),
+        'message': [{'type': 'text', 'data': {'text': 文本}}],
+        'message_format': raw.get('message_format'),
+        'post_type': raw.get('post_type'),
+    }
     if raw.get('group_id'):
-        return {
-            'self_id': raw.get('self_id'),
-            'user_id': raw.get('user_id'),
-            'time': raw.get('time'),
-            'message_id': raw.get('message_id'),
-            'message_seq': raw.get('message_seq'),
-            'real_id': raw.get('real_id'),
-            'real_seq': raw.get('real_seq'),
-            'message_type': raw.get('message_type'),
-            'sender': raw.get('sender'),
-            'raw_message': 文本,
-            'font': raw.get('font'),
-            'sub_type': raw.get('sub_type'),
-            'message': [{'type': 'text', 'data': {'text': 文本}}],
-            'message_format': raw.get('message_format'),
-            'post_type': raw.get('post_type'),
-            'group_id': raw.get('group_id'),
-            'group_name': raw.get('group_name'),
-        }
-
+        基础字段['group_id'] = raw.get('group_id')
+        基础字段['group_name'] = raw.get('group_name')
     else:
-        return {
-            'self_id': raw.get('self_id'),
-            'user_id': raw.get('user_id'),
-            'time': raw.get('time'),
-            'message_id': raw.get('message_id'),
-            'message_seq': raw.get('message_seq'),
-            'real_id': raw.get('real_id'),
-            'real_seq': raw.get('real_seq'),
-            'message_type': raw.get('message_type'),
-            'sender': raw.get('sender'),
-            'raw_message': 文本,
-            'font': raw.get('font'),
-            'sub_type': raw.get('sub_type'),
-            'message': [{'type': 'text', 'data': {'text': 文本}}],
-            'message_format': raw.get('message_format'),
-            'post_type': raw.get('post_type'),
-            'target_id': raw.get('target_id'),
-        }
+        基础字段['target_id'] = raw.get('target_id')
+
+    if kwargs:
+        for key, value in kwargs.items():
+            基础字段[key] = value
+    return 基础字段
