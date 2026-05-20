@@ -340,11 +340,11 @@
         "description": "其他配置",
         "type": "object",
         "items": {
-            "机器人名字": {
+            "机器人qq": {
                 "type": "string",
-                "description": "机器人名字",
-                "default": "纳西妲",
-                "hint": "机器人名字"
+                "description": "机器人qq",
+                "default": "",
+                "hint": "机器人qq号"
             },
             "info日志": {
                 "type": "bool",

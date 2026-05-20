@@ -120,7 +120,7 @@ class Hermes适配器(Star):
         self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
         self.ws = HermesWsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
-        self.ws.机器人名字 = config['其他配置']['机器人名字']
+        self.ws.机器人qq = config['其他配置']['机器人qq']
 
         logger.debug("[Hermes适配器] __init__完成")
 

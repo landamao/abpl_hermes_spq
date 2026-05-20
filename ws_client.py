@@ -13,7 +13,7 @@ class HermesWsClient:
         self.hermes_ws_url = hermes_ws_url
         self.hermes_token = hermes_token
         self.ws服务 = None
-        self.机器人名字 = "纳西妲"
+        self.机器人qq = "纳西妲"
     # ========== Hermes WebSocket ==========
 
     async def ws开始(self):
@@ -78,14 +78,14 @@ class HermesWsClient:
             self.ws服务 = ws
 
             logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
-            logger.info(f"[Hermes适配器] 机器人名字：{self.机器人名字}")
+            logger.info(f"[Hermes适配器] 机器人qq：{self.机器人qq}")
             self.ws已连接 = True
             HermesStatus.ws连接次数 += 1
 
             await self.发送ws消息({
                 "type": "connect",
                 "platform": "qqonebot",
-                "self_id": self.机器人名字,
+                "self_id": self.机器人qq,
                 "data": {}
             })
 
