@@ -8,6 +8,7 @@ from . import logger
 from .napcat_send import NapCatSend
 from .message_id import MessageId
 from .ws_client import HemresWsClient
+from .status import HermesStatus
 class Hermes适配器(Star):
     """中央管理器"""
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -153,7 +154,10 @@ class Hermes适配器(Star):
             来源 = "群聊" if raw.get('group_id') else "私聊"
             await self.ws.发送ws消息(data)
             if self.转发时贴表情:
-                await self.NapCatSend.贴表情(data)
+                if 群号:
+                    await self.NapCatSend.贴表情(data)
+                else:
+                    await self.NapCatSend.戳一戳(raw.get('user_id'))
             logger.info(f"[Hermes适配器] 已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
         logger.debug(f"[Hermes适配器] 转发检测未通过")
@@ -201,6 +205,7 @@ class Hermes适配器(Star):
                     return "该用户未授权使用Hermes，Agent，请联系管理员"
             NapCat事件体 = 构造文本NapCat事件体(event, task)
             await self.ws.发送ws消息(NapCat事件体)
+            HermesStatus.LLM工具调用 += 1
             return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
         except Exception as e:
             logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
@@ -233,7 +238,9 @@ class Hermes适配器(Star):
                 group_id=group_id,
                 event=event
             )
+            HermesStatus.指令执行次数 += 1
             if result.get('success'):
+                HermesStatus.指令成功 += 1
                 parts = []
                 if result.get('texts'):
                     parts.append("执行结果:\n" + "\n".join(result['texts']))
@@ -244,8 +251,10 @@ class Hermes适配器(Star):
                     parts.append(f"已发送 {sent} 条消息到群")
                 return "\n".join(parts) if parts else "指令执行成功（无输出）"
             else:
+                HermesStatus.指令失败 += 1
                 return f"指令执行失败: {result.get('error', '未知错误')}"
         except Exception as e:
+            HermesStatus.指令失败 += 1
             logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
             return f"执行指令失败: {str(e)}"
 
@@ -297,6 +306,29 @@ class Hermes适配器(Star):
             return "没有找到可用指令"
 
         return f"可用指令列表 (共{len(commands)}个):\n" + "\n".join(commands)
+
+    @filter.command("hermes状态", alias={"爱马仕状态", "Hermes状态", "hstatus", "Hstatus"})
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    async def Hermes状态指令(self, _):
+        """发送Hermes状态"""
+        # 实时状态
+        ws状态 = "已连接" if self.ws.ws已连接 else "未连接"
+        指令缓存 = len(self.指令管理器.处理器缓存) if self.指令管理器 else 0
+        群聊缓存 = len(self.群事件)
+        私聊缓存 = len(self.私聊事件)
+        http服务器 = "运行中" if self.启用指令HTTP服务器 else "未启用"
+        反向http = "运行中" if self.开启反向HTTP else "未启用"
+        
+        状态信息 = (
+            f"=== Hermes 适配器状态 ===\n"
+            f"Hermes WebSocket: {ws状态}\n"
+            f"消息发送: {'NapCat HTTP' if self.消息发送方式 == 'NapCat Http 服务器' else 'AstrBot WebSocket'}\n"
+            f"指令HTTP: {http服务器}\n"
+            f"反向HTTP: {反向http}\n"
+            f"缓存: {指令缓存}个指令 | {群聊缓存}个群 | {私聊缓存}个私聊\n"
+            f"\n{HermesStatus.总结()}"
+        )
+        yield _.plain_result(状态信息)
 
     # ========== qq消息过滤 ==========（在此模块即可，不用过度模块化）
 

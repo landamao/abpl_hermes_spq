@@ -2,6 +2,7 @@ from aiohttp import web
 from urllib.parse import urlparse
 from . import logger
 from .napcat_send import NapCatSend
+from .status import HermesStatus
 
 
 class ReverseHTTPServer:
@@ -45,9 +46,11 @@ class ReverseHTTPServer:
         try:
             data = {"action": action, "params": params, "echo": echo}
             result = await self.napcat_send.发送data消息到NapCat(data)
+            HermesStatus.反向HTTP请求 += 1
             logger.debug(f"[Hermes适配器] 反向HTTP转发结果: {result}")
             return web.json_response(result)
         except Exception as e:
+            HermesStatus.反向HTTP失败 += 1
             logger.error(f"[Hermes适配器] 反向HTTP转发失败: {e}", exc_info=True)
             return web.json_response({
                 "status": "failed", "retcode": -1,

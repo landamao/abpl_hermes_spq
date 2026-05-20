@@ -220,7 +220,7 @@
                 "type": "bool",
                 "description": "Hermes回复消息贴表情",
                 "default": true,
-                "hint": "Hermes 发送回复消息后自动给回复贴表情"
+                "hint": "Hermes 发送回复消息后自动给回复贴表情，私聊戳一戳"
             },
             "转发时贴表情": {
                 "type": "bool",
