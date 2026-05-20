@@ -1,6 +1,6 @@
 import os, json, yaml, random, aiohttp
 from aiocqhttp import ActionFailed
-from astrbot.api.all import AstrBotConfig
+from astrbot.api.all import AstrBotConfig, BaseMessageComponent, MessageChain, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from .logger import logger
 from .message_id import MessageId
@@ -117,16 +117,18 @@ class NapCatSend:
             return {}
         return await self.发送动作参数到NapCat("send_poke", {"user_id": str(qq)})
 
-    async def 发送框架消息链到NapCat(self, 消息链:list, 类型:str, ID:str, echo=None) -> dict:
+    async def 发送框架消息链到NapCat(self, 消息链:list[BaseMessageComponent]|MessageChain, 类型:str, ID:str, echo=None) -> dict:
         """发送框架类型的消息链到NapCat
         Args:
+            消息链(list[BaseMessageComponent]|MessageChain): 框架消息链
             类型(str): 私聊or群聊
             ID(str)：私聊qq号或群号
         Returns:
             发送结果"""
-        from astrbot.api.all import Reply, MessageChain
         # 过滤不兼容的嵌套 Reply 组件
         原消息链 = 消息链
+        if isinstance(消息链, MessageChain):
+            原消息链 = 消息链.chain
         新消息链 = [c for c in 原消息链 if not isinstance(c, Reply)]
         消息组 = await self.event._parse_onebot_json(MessageChain(chain=新消息链))
         # 重新插入干净的 Reply
