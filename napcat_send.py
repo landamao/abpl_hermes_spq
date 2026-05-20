@@ -225,6 +225,9 @@ class NapCatSend:
         params = data.get('params', {})
         echo = data.get('echo')
         logger.debug("[Hermes适配器] 通过框架方法发送到NapCat")
+        if self.event is None:
+            logger.warning(f"[Hermes适配器] event 为 None，无法通过框架发送。请先在群/私聊发送任意消息激活。原数据：{data}")
+            return {"echo": echo, "status": "failed", "retcode": -1, "data": None, "msg": "event 未初始化，请先发送任意消息激活"}
         try:
             结果 = await self.event.bot.call_action(action, **params)
             返回 = {"echo": echo, "status": "ok", "retcode": 0, "data": 结果 or {}}
