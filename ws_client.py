@@ -85,7 +85,7 @@ class HermesWsClient:
             await self.发送ws消息({
                 "type": "connect",
                 "platform": "qqonebot",
-                "self_id": "纳西妲",
+                "self_id": self.机器人名字,
                 "data": {}
             })
 
