@@ -7,8 +7,8 @@ from .Tools import *
 from .logger import logger
 from .napcat_send import NapCatSend
 from .message_id import MessageId
-from .ws_client import HermesWsClient
-from .status import HermesStatus
+from .ws_client import WsClient
+from .status import Status
 class Hermes适配器(Star):
     """中央管理器"""
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
@@ -17,6 +17,7 @@ class Hermes适配器(Star):
         self.config: AstrBotConfig = config
         self.群事件:dict[str, AiocqhttpMessageEvent] = {}
         self.私聊事件:dict[str, AiocqhttpMessageEvent] = {}
+        self._bot = None  # 主动发现的 bot 实例
 
         logger.设置info日志(config['其他配置']['info日志'])
 
@@ -59,11 +60,13 @@ class Hermes适配器(Star):
         self.允许的群组: list[str] = 解析all(清理列表(过滤配置['允许的群组']), False)
         self.允许的用户: list[str] = 解析all(清理列表(过滤配置['允许的用户']))
         self.私聊允许的用户: list[str] = 解析all(清理列表(过滤配置['私聊允许的用户']))
-        self.私聊转发所有消息: bool = 过滤配置['私聊转发所有消息']
-        self.引用唤醒: bool = 过滤配置['引用唤醒']
-        self.艾特机器人触发: bool = 过滤配置['艾特机器人触发']
-        self.触发关键词: list[str] = 清理列表(过滤配置['触发关键词'])
-        self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
+        self.跟随框架唤醒 = 过滤配置['跟随框架唤醒']
+        if not self.跟随框架唤醒:
+            self.私聊转发所有消息: bool = 过滤配置['私聊转发所有消息']
+            self.引用唤醒: bool = 过滤配置['引用唤醒']
+            self.艾特机器人触发: bool = 过滤配置['艾特机器人触发']
+            self.触发关键词: list[str] = 清理列表(过滤配置['触发关键词'])
+            self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
 
         # ========== 授权配置 ==========
         授权配置: dict = config['授权配置']
@@ -119,7 +122,7 @@ class Hermes适配器(Star):
 
         self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
 
-        self.ws = HermesWsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
+        self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
         self.ws.机器人qq = config['其他配置']['机器人qq']
 
         logger.debug("[Hermes适配器] __init__完成")
@@ -151,8 +154,11 @@ class Hermes适配器(Star):
             return
 
         转发, data = await self.检查转发到Hermes(event)
+        if self.跟随框架唤醒:
+            event.set_extra("Hermes唤醒", data)
+            return
         if 转发 and self.处理冲突(event):
-            来源 = "群聊" if raw.get('group_id') else "私聊"
+            来源 = "群聊" if 群号 else "私聊"
             await self.ws.发送ws消息(data)
             if self.转发时贴表情:
                 if 群号:
@@ -163,6 +169,23 @@ class Hermes适配器(Star):
             return
         logger.debug(f"[Hermes适配器] 转发检测未通过")
 
+    @filter.on_llm_request(priority=-sys.maxsize)
+    async def llm请求前(self, event: AiocqhttpMessageEvent, _):
+        """检测是否跟随框架唤醒"""
+        if data := event.get_extra("Hermes唤醒", False):
+            raw: dict = event.message_obj.raw_message
+            群号 = str(raw.get('group_id', ""))
+            来源 = "群聊" if 群号 else "私聊"
+            await self.ws.发送ws消息(data)
+            if self.转发时贴表情:
+                if 群号:
+                    await self.NapCatSend.贴表情(data)
+                else:
+                    await self.NapCatSend.戳一戳(raw.get('user_id'))
+            logger.info("[Hermes适配器] 已跟随框架唤醒")
+            event.stop_event()
+            logger.info(f"[Hermes适配器] 已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
+            return
 
     @filter.on_llm_response(priority=sys.maxsize)
     async def llm请求后(self, _, resp: LLMResponse):
@@ -206,7 +229,7 @@ class Hermes适配器(Star):
                     return "该用户未授权使用Hermes，Agent，请联系管理员"
             NapCat事件体 = 构造文本NapCat事件体(event, task)
             await self.ws.发送ws消息(NapCat事件体)
-            HermesStatus.LLM工具调用 += 1
+            Status.LLM工具调用 += 1
             return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
         except Exception as e:
             logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
@@ -239,9 +262,9 @@ class Hermes适配器(Star):
                 group_id=group_id,
                 event=event
             )
-            HermesStatus.指令执行次数 += 1
+            Status.指令执行次数 += 1
             if result.get('success'):
-                HermesStatus.指令成功 += 1
+                Status.指令成功 += 1
                 parts = []
                 if result.get('texts'):
                     parts.append("执行结果:\n" + "\n".join(result['texts']))
@@ -252,10 +275,10 @@ class Hermes适配器(Star):
                     parts.append(f"已发送 {sent} 条消息到群")
                 return "\n".join(parts) if parts else "指令执行成功（无输出）"
             else:
-                HermesStatus.指令失败 += 1
+                Status.指令失败 += 1
                 return f"指令执行失败: {result.get('error', '未知错误')}"
         except Exception as e:
-            HermesStatus.指令失败 += 1
+            Status.指令失败 += 1
             logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
             return f"执行指令失败: {str(e)}"
 
@@ -327,7 +350,7 @@ class Hermes适配器(Star):
             f"指令HTTP: {http服务器}\n"
             f"反向HTTP: {反向http}\n"
             f"缓存: {指令缓存}个指令 | {群聊缓存}个群 | {私聊缓存}个私聊\n"
-            f"\n{HermesStatus.总结()}"
+            f"\n{Status.总结()}"
         )
         yield _.plain_result(状态信息)
 
@@ -358,30 +381,41 @@ class Hermes适配器(Star):
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
         text = 纯文本(raw)
+        指令前缀 = self.自定义指令前缀
+        if 指令前缀 != '/' and text.startswith('/'):
+            return False, raw  #防止意外指令被转发
         if 群号:
             if not all判断(self.允许的群组, 群号):
                 return False, raw
             if not all判断(self.允许的用户, qq):
                 return False, raw
+            if self.跟随框架唤醒:
+                if text.startswith(指令前缀):
+                    return await self.指令检查(event, raw, text, qq)
+                return True, raw
         else:
             if not all判断(self.私聊允许的用户, qq):
                 return False, raw
+            if self.跟随框架唤醒:
+                if text.startswith(指令前缀):
+                    return await self.指令检查(event, raw, text, qq)
+                return True, raw
             if self.私聊转发所有消息:
-                if text.startswith(self.自定义指令前缀):
+                if text.startswith(指令前缀):
                     return await self.指令检查(event, raw, text, qq)
                 return True, raw  #每个return True之前都要作指令检查
         if self.引用唤醒 and (message_id := 引用ID(raw)) and MessageId.has(message_id):
-            if text.startswith(self.自定义指令前缀):
+            if text.startswith(指令前缀):
                 return await self.指令检查(event, raw, text, qq)
             return True, raw
         if self.艾特机器人触发 and str(raw.get('self_id')) in 艾特ID(raw):
-            if text.startswith(self.自定义指令前缀):
+            if text.startswith(指令前缀):
                 return await self.指令检查(event, raw, text, qq)
             return True, raw
-        if text.startswith(self.自定义指令前缀):
+        if text.startswith(指令前缀):
             return await self.指令检查(event, raw, text, qq)
         if any(i in text for i in self.触发关键词):
-            if text.startswith(self.自定义指令前缀):
+            if text.startswith(指令前缀):
                 return await self.指令检查(event, raw, text, qq)
             return True, raw
         return False, raw
@@ -433,6 +467,48 @@ class Hermes适配器(Star):
         结果 = await self.NapCatSend.发送动作参数到NapCat(动作, 参数)
         return 结果
 
+    # ========== Bot 实例发现 ==========
+
+    async def _discover_bot_instance(self):
+        """从 AstrBot 上下文主动发现 OneBot bot 实例"""
+        platform_manager = getattr(self.context, "platform_manager", None)
+        if not platform_manager:
+            logger.warning("[Hermes适配器] 无法获取 platform_manager")
+            return None
+
+        get_insts = getattr(platform_manager, "get_insts", None)
+        if not callable(get_insts):
+            logger.warning("[Hermes适配器] platform_manager 没有 get_insts 方法")
+            return None
+
+        platforms = get_insts()
+        if not platforms:
+            logger.warning("[Hermes适配器] 未发现任何平台实例")
+            return None
+
+        # logger.info(f"[Hermes适配器] 发现 {len(platforms)} 个平台实例")
+
+        for platform in platforms:
+            bot_client = None
+            # 尝试多种方式获取 bot client
+            get_client = getattr(platform, "get_client", None)
+            if callable(get_client):
+                bot_client = get_client()
+            if not bot_client:
+                bot_client = getattr(platform, "bot", None)
+            if not bot_client:
+                bot_client = getattr(platform, "client", None)
+
+            # 检查是否是 OneBot (有 call_action 方法)
+            if bot_client and hasattr(bot_client, "call_action"):
+                if type(bot_client).__name__ != "CQHttp":
+                    continue
+                logger.info(f"[Hermes适配器] 主动发现 NapCat（OneBot） 实例: {type(bot_client).__name__}")
+                return bot_client
+
+        logger.warning("[Hermes适配器] 未发现可用的 OneBot 实例")
+        return None
+
     # ========== 生命周期 ==========
 
     async def initialize(self):
@@ -447,7 +523,14 @@ class Hermes适配器(Star):
         await self.ws.ws开始()
         await asyncio.sleep(0.1)
         if self.消息发送方式 == "框架已有的WebSocket":
-            logger.warning("[Hermes适配器] 当前发送消息方式为“框架已有的WebSocket”，请在qq发送任意消息以激活")
+            bot = await self._discover_bot_instance()
+            if not bot:
+                logger.warning("[Hermes适配器] 未获取到NapCat bot实例当前发送消息方式为框架已有的WebSocket，请在qq发送任意消息以激活")
+            else:
+                from .aicqhttpevent import AiocqhttpMessageEvent
+                event = AiocqhttpMessageEvent(bot)
+                self.set_event(event)
+
         logger.debug("[Hermes适配器] initialize完成")
         logger.info("[Hermes适配器] 初始化完成")
 

@@ -4,7 +4,7 @@ from astrbot.api.all import AstrBotConfig, BaseMessageComponent, MessageChain, R
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from .logger import logger
 from .message_id import MessageId
-from .status import HermesStatus
+from .status import Status
 
 
 class NapCatSend:
@@ -108,9 +108,9 @@ class NapCatSend:
         }
         结果 = await self.发送动作参数到NapCat(动作, 参数)
         if 结果.get('status') == 'ok' or 结果.get('retcode') == 0:
-            HermesStatus.贴表情成功 += 1
+            Status.贴表情成功 += 1
         else:
-            HermesStatus.贴表情失败 += 1
+            Status.贴表情失败 += 1
         logger.debug(f"[Hermes适配器] 贴表情发送结果：{结果}")
         return 结果
 
@@ -241,15 +241,15 @@ class NapCatSend:
             MessageId.add(结果)
             if self.回复消息贴表情:
                 await self.贴表情(结果)
-            HermesStatus.NapCat发送成功 += 1
+            Status.NapCat发送成功 += 1
         except ActionFailed as e:
-            HermesStatus.NapCat发送失败 += 1
+            Status.NapCat发送失败 += 1
             logger.error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             结果 = e.__dict__.get('result')
             结果['echo'] = echo
             返回 = 结果
         except Exception as e:
-            HermesStatus.NapCat发送失败 += 1
+            Status.NapCat发送失败 += 1
             logger.error(f"[Hermes适配器] 转发消息到NapCat失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             返回 = {"echo": echo, "status": "failed", "retcode": -1, "data": None, "msg": str(e)}
         return 返回
@@ -275,11 +275,11 @@ class NapCatSend:
             MessageId.add(结果)
             if self.回复消息贴表情:
                 await self.贴表情(结果)
-            HermesStatus.NapCat发送成功 += 1
+            Status.NapCat发送成功 += 1
             return 结果
 
         except Exception as e:
-            HermesStatus.NapCat发送失败 += 1
+            Status.NapCat发送失败 += 1
             logger.error(f"[Hermes适配器] API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             return {"echo": echo, "status": "failed", "retcode": 100, "msg": str(e), "data": None}
 
@@ -358,7 +358,7 @@ class NapCatSend:
             for 敏感词 in self.敏感字符列表:
                 if 敏感词 in message:
                     message = message.replace(敏感词, self.替换目标)
-                    HermesStatus.脱敏替换次数 += 1
+                    Status.脱敏替换次数 += 1
                     logger.debug(f"[Hermes适配器] 脱敏：替换字符串中的敏感字符")
             params['message'] = message
 
@@ -369,7 +369,7 @@ class NapCatSend:
                     for 敏感词 in self.敏感字符列表:
                         if 敏感词 in text:
                             text = text.replace(敏感词, self.替换目标)
-                            HermesStatus.脱敏替换次数 += 1
+                            Status.脱敏替换次数 += 1
                     segment['data']['text'] = text
 
         # 同步更新 raw_message

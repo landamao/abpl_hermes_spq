@@ -1,9 +1,9 @@
 import json, asyncio,websockets
 from .napcat_send import NapCatSend
-from .status import HermesStatus
+from .status import Status
 from .logger import logger
 
-class HermesWsClient:
+class WsClient:
 
     def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend):
         self.ws已连接 = False
@@ -36,10 +36,10 @@ class HermesWsClient:
         if self.ws已连接:
             try:
                 await self.ws服务.send(json.dumps(data, ensure_ascii=False))
-                HermesStatus.ws发送成功 += 1
+                Status.ws发送成功 += 1
                 logger.debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
             except Exception as e:
-                HermesStatus.ws发送失败 += 1
+                Status.ws发送失败 += 1
                 logger.error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
                 logger.error(f"[Hermes适配器] 发送失败，原始数据: {data}")
 
@@ -56,7 +56,7 @@ class HermesWsClient:
             if self.ws已连接:
                 logger.info("[Hermes适配器] WebSocket 断开，准备重连...")
                 self.ws已连接 = False
-                HermesStatus.ws断开次数 += 1
+                Status.ws断开次数 += 1
     
             logger.info(f"[Hermes适配器] 等待 {self.ws重连延迟:.1f}s 后重连...")
             await asyncio.sleep(self.ws重连延迟)
@@ -80,7 +80,7 @@ class HermesWsClient:
             logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
             logger.info(f"[Hermes适配器] 机器人qq：{self.机器人qq}")
             self.ws已连接 = True
-            HermesStatus.ws连接次数 += 1
+            Status.ws连接次数 += 1
 
             await self.发送ws消息({
                 "type": "connect",
@@ -98,7 +98,7 @@ class HermesWsClient:
 
     async def 处理ws消息(self, raw):
         data = json.loads(raw)
-        HermesStatus.ws收到消息 += 1
+        Status.ws收到消息 += 1
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
         结果 = await self.NapCatSend.发送data消息到NapCat(data)
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")

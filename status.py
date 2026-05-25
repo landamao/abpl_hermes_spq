@@ -2,7 +2,7 @@ import time
 from .logger import logger
 
 
-class HermesStatus:
+class Status:
     """适配器全局状态追踪，通过类变量在各模块间共享"""
 
     # ========== 启动时间 ==========
