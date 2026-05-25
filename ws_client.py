@@ -96,10 +96,22 @@ class WsClient:
                 except Exception as e:
                     logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
 
+    # 在 ws_client.py 的 WsClient 类中添加一个后台任务方法
+
+    async def _转发到NapCat并回响应(self, data: dict):
+        """后台任务：转发 Hermes 消息到 NapCat，并将结果发回 Hermes"""
+        try:
+            result = await self.NapCatSend.发送data消息到NapCat(data)
+            logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{result}")
+            await self.发送ws消息(result)
+        except Exception as e:
+            logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
+
     async def 处理ws消息(self, raw):
         data = json.loads(raw)
         Status.ws收到消息 += 1
+        # 原日志调用，完全保留
         logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
-        结果 = await self.NapCatSend.发送data消息到NapCat(data)
-        logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{结果}")
-        await self.发送ws消息(结果)
+
+        # 关键改动：创建后台任务，不再 await，避免阻塞
+        asyncio.create_task(self._转发到NapCat并回响应(data))
