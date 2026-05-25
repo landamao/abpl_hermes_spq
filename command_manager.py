@@ -30,7 +30,11 @@ class 指令管理器:
         # 指令配置
         指令配置: dict = config['指令配置']
         self.指令白名单: list[str] = [i.strip() for i in 指令配置['指令白名单'] if i.strip()]
+        if "all" in self.指令白名单:
+            self.指令白名单 = ["all"]
         self.指令黑名单: list[str] = [i.strip() for i in 指令配置['指令黑名单'] if i.strip()]
+        if "all" in self.指令黑名单:
+            self.指令黑名单 = ["all"]
 
     # ========== 缓存管理 ==========
 
@@ -120,11 +124,16 @@ class 指令管理器:
         """检查指令是否允许执行"""
         if command.startswith('/'):
             command = command[1:]
-        if self.指令黑名单 and command in self.指令黑名单:
-            return False, f'指令 {command} 在黑名单中'
-        if self.指令白名单 and command not in self.指令白名单:
-            return False, f'指令 {command} 不在白名单中'
-        return True, '可以执行'
+        if self.指令黑名单:
+            if self.指令黑名单[0] == "all" or command in self.指令黑名单:
+                return False, f'指令 {command} 在黑名单中'
+        if self.指令白名单:
+            if self.指令白名单[0] == "all" or command in self.指令白名单:
+                return True, '可以执行'
+            else:
+                return False, f'指令 {command} 不在白名单中'
+        else:
+            return False, f'未配置指令白名单，所有指令不可执行，请配置指令或配置为all'
 
     def 查找处理器信息(self, command: str) -> dict:
         """通过指令名或别名查找处理器信息"""

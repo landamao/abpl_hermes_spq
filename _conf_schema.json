@@ -352,14 +352,14 @@
             "指令白名单": {
                 "type": "list",
                 "description": "指令白名单",
-                "default": [],
-                "hint": "留空表示允许所有指令，填写后只允许列表中的指令执行"
+                "default": ["all"],
+                "hint": "all代表所有指令"
             },
             "指令黑名单": {
                 "type": "list",
                 "description": "指令黑名单",
                 "default": [],
-                "hint": "列表中的指令不允许执行"
+                "hint": "all代表所有指令，列表中的指令不允许执行"
             }
         }
     },

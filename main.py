@@ -67,6 +67,12 @@ class Hermes适配器(Star):
             self.艾特机器人触发: bool = 过滤配置['艾特机器人触发']
             self.触发关键词: list[str] = 清理列表(过滤配置['触发关键词'])
             self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
+        else:
+            self.私聊转发所有消息: bool = False
+            self.引用唤醒: bool = False
+            self.艾特机器人触发: bool = False
+            self.触发关键词: list[str] = []
+            self.同时唤醒处理方式: str = ""
 
         # ========== 授权配置 ==========
         授权配置: dict = config['授权配置']
@@ -172,7 +178,7 @@ class Hermes适配器(Star):
     @filter.on_llm_request(priority=-sys.maxsize)
     async def llm请求前(self, event: AiocqhttpMessageEvent, _):
         """检测是否跟随框架唤醒"""
-        if data := event.get_extra("Hermes唤醒", False):
+        if self.跟随框架唤醒 and (data := event.get_extra("Hermes唤醒", False)):
             raw: dict = event.message_obj.raw_message
             群号 = str(raw.get('group_id', ""))
             来源 = "群聊" if 群号 else "私聊"
