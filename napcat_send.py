@@ -36,8 +36,7 @@ class NapCatSend:
             logger.warning("[Hermes适配器] 贴表情列表为空，已恢复默认")
             贴表情列表: str = emoji配置['贴表情列表'].strip()
         try:
-            清理后 = (贴表情列表.replace('\n', '').replace('\r', '')
-                    .replace(' ', '').replace('\t', '').replace('，', ','))
+            清理后 = ''.join(贴表情列表.split()).replace('，', ',')
             parts = [i for i in 清理后.split(',') if i]
             self.贴表情列表: tuple = tuple(map(int, parts))
             规范后 = '，'.join(map(str, self.贴表情列表))
@@ -46,8 +45,7 @@ class NapCatSend:
                 config.save_config()
         except Exception as e:
             贴表情列表 = config.schema['emoji配置']['items']['贴表情列表']['default']
-            清理后 = (贴表情列表.replace('\n', '').replace('\r', '')
-                    .replace(' ', '').replace('\t', '').replace('，', ','))
+            清理后 = ''.join(贴表情列表.split()).replace('，', ',')
             parts = [i for i in 清理后.split(',') if i]
             self.贴表情列表: tuple = tuple(map(int, parts))
             logger.error(

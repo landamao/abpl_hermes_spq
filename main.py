@@ -50,16 +50,35 @@ class Hermes适配器(Star):
         def 解析all(l: list[str], ad=True) -> list[str]:
             """解析all和admin"""
             if "all" in l:
-                return ["all"] # 先设置好，避免无意义遍历判断
+                # 保留黑名单条目（/开头），避免 ["all", "/12345"] 时丢失黑名单
+                黑名单条目 = [i for i in l if i.startswith('/')]
+                return ["all"] + 黑名单条目
             if ad and "admin" in l:
                 l.extend(管理员列表)
             return list(dict.fromkeys(l))
 
         # ========== 过滤配置 ==========
         过滤配置: dict = config['过滤配置']
-        self.允许的群组: list[str] = 解析all(清理列表(过滤配置['允许的群组']), False)
-        self.允许的用户: list[str] = 解析all(清理列表(过滤配置['允许的用户']))
-        self.私聊允许的用户: list[str] = 解析all(清理列表(过滤配置['私聊允许的用户']))
+        # 群组
+        raw_groups = 解析all(清理列表(过滤配置['允许的群组']), False)
+        self.黑名单群组 = [i[1:] for i in raw_groups if i.startswith('/')]
+        self.允许的群组 = [i for i in raw_groups if not i.startswith('/')]
+        logger.info(f"解析后 - 允许的群组: {self.允许的群组}")
+        logger.info(f"解析后 - 黑名单群组: {self.黑名单群组}")
+
+        # 用户
+        raw_users = 解析all(清理列表(过滤配置['允许的用户']))
+        self.黑名单用户 = [i[1:] for i in raw_users if i.startswith('/')]
+        self.允许的用户 = [i for i in raw_users if not i.startswith('/')]
+        logger.info(f"解析后 - 允许的用户: {self.允许的用户}")
+        logger.info(f"解析后 - 黑名单用户: {self.黑名单用户}")
+
+        # 私聊用户
+        raw_private = 解析all(清理列表(过滤配置['私聊允许的用户']))
+        self.私聊黑名单 = [i[1:] for i in raw_private if i.startswith('/')]
+        self.私聊允许的用户 = [i for i in raw_private if not i.startswith('/')]
+        logger.info(f"解析后 - 私聊允许的用户: {self.私聊允许的用户}")
+        logger.info(f"解析后 - 私聊黑名单: {self.私聊黑名单}")
         self.跟随框架唤醒 = 过滤配置['跟随框架唤醒']
         if not self.跟随框架唤醒:
             self.私聊转发所有消息: bool = 过滤配置['私聊转发所有消息']
@@ -226,11 +245,17 @@ class Hermes适配器(Star):
             if task.startswith((self.自定义指令前缀, "/")):
                 return "禁止使用此方式发送指令"
             if 群号:
-                if not all判断(self.允许的群组, 群号):
+                if 群号 in self.黑名单群组:
+                    return "该群未授权使用Hermes，Agent，请联系管理员"
+                if qq in self.黑名单用户:
                     return "该用户未授权使用Hermes，Agent，请联系管理员"
+                if not all判断(self.允许的群组, 群号):
+                    return "该群未授权使用Hermes，Agent，请联系管理员"
                 if not all判断(self.允许的用户, qq):
                     return "该用户未授权使用Hermes，Agent，请联系管理员"
             else:
+                if qq in self.私聊黑名单:
+                    return "该用户未授权使用Hermes，Agent，请联系管理员"
                 if not all判断(self.私聊允许的用户, qq):
                     return "该用户未授权使用Hermes，Agent，请联系管理员"
             NapCat事件体 = 构造文本NapCat事件体(event, task)
@@ -391,6 +416,10 @@ class Hermes适配器(Star):
         if 指令前缀 != '/' and text.startswith('/'):
             return False, raw  #防止意外指令被转发
         if 群号:
+            if 群号 in self.黑名单群组:
+                return False, raw
+            if qq in self.黑名单用户:
+                return False, raw
             if not all判断(self.允许的群组, 群号):
                 return False, raw
             if not all判断(self.允许的用户, qq):
@@ -400,6 +429,8 @@ class Hermes适配器(Star):
                     return await self.指令检查(event, raw, text, qq)
                 return True, raw
         else:
+            if qq in self.私聊黑名单:
+                return False, raw
             if not all判断(self.私聊允许的用户, qq):
                 return False, raw
             if self.跟随框架唤醒:

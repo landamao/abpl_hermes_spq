@@ -90,19 +90,19 @@
                 "type": "list",
                 "description": "允许的群组",
                 "default": [],
-                "hint": "填写群号，all代表所有"
+                "hint": "填写群号，all代表所有，以/开头代表禁用，会优先检测禁用的ID"
             },
             "允许的用户": {
                 "type": "list",
                 "description": "允许的用户",
                 "default": ["admin"],
-                "hint": "填写qq号，all代表所有，admin代表框架管理员"
+                "hint": "填写qq号，all代表所有，admin代表框架管理员，以/开头代表禁用，会优先检测禁用的ID，不支持/all，/admin"
             },
             "私聊允许的用户": {
                 "type": "list",
                 "description": "私聊允许的用户",
                 "default": ["admin"],
-                "hint": "填写qq号，私聊时允许唤醒Hermes的用户，all代表所有，admin代表框架管理员"
+                "hint": "填写qq号，私聊时允许唤醒Hermes的用户，all代表所有，admin代表框架管理员，以/开头代表禁用，会优先检测禁用的ID，不支持/all，/admin"
             },
             "跟随框架唤醒": {
                 "type": "bool",
