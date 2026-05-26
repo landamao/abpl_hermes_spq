@@ -59,6 +59,22 @@ class Hermes适配器(Star):
 
         # ========== 过滤配置 ==========
         过滤配置: dict = config['过滤配置']
+        self.跳过指令 = 过滤配置['跳过指令']
+        if self.跳过指令:
+            from astrbot.core.star.star_handler import star_handlers_registry
+            from astrbot.core.star.filter.command_group import CommandGroupFilter, CommandFilter
+            # 遍历所有注册的处理器获取所有命令，包括别名
+            指令列表 = []
+            for handler in star_handlers_registry:
+                for i in handler.event_filters:
+                    if isinstance(i, CommandFilter):
+                        指令列表.append(i.command_name)
+                        # 获取别名 - 属性名是 alias，类型是 set
+                        if hasattr(i, 'alias') and i.alias:
+                            指令列表.extend(list(i.alias))
+                    elif isinstance(i, CommandGroupFilter):
+                        指令列表.append(i.group_name)
+            self.所有指令 = set(指令列表)
         # 群组
         raw_groups = 解析all(清理列表(过滤配置['允许的群组']), False)
         self.黑名单群组 = [i[1:] for i in raw_groups if i.startswith('/')]
@@ -159,7 +175,7 @@ class Hermes适配器(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 AiocqhttpMessageEvent"""
-        if not event.get_message_str():
+        if not (text:=event.get_message_str()):
             # 不处理也不存没有文本的事件
             return
 
@@ -173,7 +189,8 @@ class Hermes适配器(Star):
         else:
             if qq := str(raw.get('user_id', "")):
                 self.私聊事件[qq] = event
-
+        if self.跳过指令 and (l:=text.strip().split()) and (l[0] in self.所有指令):
+                return
         if not self.ws.ws已连接:
             logger.debug(f"[Hermes适配器] Hermes WebSocket 未连接")
             return

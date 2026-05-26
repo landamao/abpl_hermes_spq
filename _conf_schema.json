@@ -159,6 +159,12 @@
                 "condition": {
                     "跟随框架唤醒": false
                 }
+            },
+            "跳过指令": {
+                "type": "bool",
+                "description": "自动跳过框架指令",
+                "default": true,
+                "hint": "自动跳过框架的指令，如/ls，/llm等将不会被转发"
             }
         }
     },
