@@ -172,10 +172,9 @@ class Hermes适配器(Star):
     # ========== 消息处理 ==========
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=-1)
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 AiocqhttpMessageEvent"""
-        if not isinstance(event, AiocqhttpMessageEvent):
-            return
         if not (text:=event.get_message_str()):
             # 不处理也不存没有文本的事件
             return
