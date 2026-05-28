@@ -509,7 +509,7 @@ class Hermes适配器(Star):
                 s = i.replace('-d', '').strip()
                 logger.debug(f"处理后s：{s}")
                 if s in text:
-                    logger.error(f"触发含有{s}")
+                    logger.debug(f"触发含有{s}")
                     return True, self.去除关键词(raw, s)
             elif i in text:
                 logger.debug(f"命中第四条")
