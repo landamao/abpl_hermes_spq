@@ -24,7 +24,7 @@ class 指令管理器:
         try:
             self.指令前缀 = tuple(context.get_config()["wake_prefix"])[0]
         except Exception as e:
-            logger.error(f"[Hermes适配器] 获取指令前缀失败，你可在代码里手动设置，使用默认值 '/': {e}")
+            logger.error(f"获取指令前缀失败，你可在代码里手动设置，使用默认值 '/': {e}")
             self.指令前缀 = "/"
 
         # 指令配置
@@ -47,7 +47,7 @@ class 指令管理器:
             所有插件 = self.context.get_all_stars()
             所有插件 = [插件 for 插件 in 所有插件 if 插件.activated]
         except Exception as e:
-            logger.error(f"[Hermes适配器] 获取插件列表失败: {e}", exc_info=True)
+            logger.error(f"获取插件列表失败: {e}", exc_info=True)
             return
 
         if not 所有插件:
@@ -110,7 +110,7 @@ class 指令管理器:
         for alias in self.别名到指令:
             self.所有指令集合.add(alias.lower())
 
-        logger.info(f"[Hermes适配器] 已缓存 {len(self.处理器缓存)} 个指令处理器")
+        logger.info(f"已缓存 {len(self.处理器缓存)} 个指令处理器")
 
     def 指令存在(self, text: str) -> bool:
         """判断文本是否为框架指令"""
@@ -238,7 +238,7 @@ class 指令管理器:
             other_results: list[str] = []
             sent_count = 0
 
-            logger.info(f"[Hermes适配器] 开始执行指令: {cmd_name}, 参数: {args}")
+            logger.info(f"开始执行指令: {cmd_name}, 参数: {args}")
 
             try:
                 handler_result = handler_meta.handler(exec_event)
@@ -253,7 +253,7 @@ class 指令管理器:
                                     if 发送结果:
                                         sent_count += 1
                                 except Exception as e:
-                                    logger.error(f"[Hermes适配器] 发送指令结果失败: {e}", exc_info=True)
+                                    logger.error(f"发送指令结果失败: {e}", exc_info=True)
                 else:
                     result = await handler_result
                     if result is not None:
@@ -264,11 +264,11 @@ class 指令管理器:
                                 if 发送结果:
                                     sent_count += 1
                             except Exception as e:
-                                logger.error(f"[Hermes适配器] 发送指令结果失败: {e}", exc_info=True)
+                                logger.error(f"发送指令结果失败: {e}", exc_info=True)
 
             except TypeError as e:
                 try:
-                    logger.warning(f"[Hermes适配器] 异步生成器失败，尝试同步调用: {e}")
+                    logger.warning(f"异步生成器失败，尝试同步调用: {e}")
                     result = await handler_meta.handler(exec_event)
                     if result is not None:
                         self._extract_content(result, text_results, image_results, other_results)
@@ -278,9 +278,9 @@ class 指令管理器:
                                 if 发送结果:
                                     sent_count += 1
                             except Exception as e:
-                                logger.error(f"[Hermes适配器] 发送指令结果失败: {e}", exc_info=True)
+                                logger.error(f"发送指令结果失败: {e}", exc_info=True)
                 except Exception as e:
-                    logger.error(f"[Hermes适配器] 执行指令异常: {e}", exc_info=True)
+                    logger.error(f"执行指令异常: {e}", exc_info=True)
                     return {
                         "提示": "执行异常",
                         'success': False,
@@ -288,7 +288,7 @@ class 指令管理器:
                         'sent': 0,  'error': f'执行异常: {str(e)}'
                     }
             except Exception as e:
-                logger.error(f"[Hermes适配器] 执行指令异常: {e}", exc_info=True)
+                logger.error(f"执行指令异常: {e}", exc_info=True)
                 return {
                     "提示": "执行异常",
                     'success': False,
@@ -296,7 +296,7 @@ class 指令管理器:
                     'sent': 0, 'error': f'执行异常: {str(e)}'
                 }
 
-            logger.info(f"[Hermes适配器] 指令执行完成: {cmd_name}, 发送 {sent_count} 个结果")
+            logger.info(f"指令执行完成: {cmd_name}, 发送 {sent_count} 个结果")
 
             return {
                 "提示": "执行成功，若有结果则已发送",
@@ -308,7 +308,7 @@ class 指令管理器:
             }
 
         except Exception as e:
-            logger.error(f"[Hermes适配器] 内部执行指令失败: {e}", exc_info=True)
+            logger.error(f"内部执行指令失败: {e}", exc_info=True)
             return {
                 "提示": "执行失败",
                 'success': False,
@@ -318,10 +318,10 @@ class 指令管理器:
     async def _发送结果(self, group_id: str, result) -> dict:
         """通过 NapCatSend.发送框架消息链到NapCat 发送结果"""
         if not hasattr(result, 'chain') or not result.chain:
-            logger.debug(f"[Hermes适配器] 结果 chain 为空，跳过发送")
+            logger.debug(f"结果 chain 为空，跳过发送")
             return {}
 
-        logger.debug(f"[Hermes适配器] 发送指令结果到群 {group_id}，chain 长度: {len(result.chain)}")
+        logger.debug(f"发送指令结果到群 {group_id}，chain 长度: {len(result.chain)}")
 
         发送结果 = await self.napcat_send.发送框架消息链到NapCat(
             消息链=result.chain,
@@ -330,7 +330,7 @@ class 指令管理器:
         )
 
         if 发送结果.get('status') == 'failed':
-            logger.error(f"[Hermes适配器] NapCat 发送失败: {发送结果}")
+            logger.error(f"NapCat 发送失败: {发送结果}")
 
         return 发送结果
 

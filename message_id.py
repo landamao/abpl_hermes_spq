@@ -18,7 +18,7 @@ class MessageId:
         elif isinstance(mid, (int, str)):
             mid = str(mid)
         if not mid:
-            logger.warning(f"[Hermes适配器] 记录消息ID未找到有效消息ID：{原mid}")
+            logger.warning(f"记录消息ID未找到有效消息ID：{原mid}")
             return
         # 使用 dict 存储，key 为消息ID，value 可任意（此处用 None）
         cls._缓存[str(mid)] = None

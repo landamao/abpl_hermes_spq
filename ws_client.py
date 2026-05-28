@@ -37,11 +37,11 @@ class WsClient:
             try:
                 await self.ws服务.send(json.dumps(data, ensure_ascii=False))
                 Status.ws发送成功 += 1
-                logger.debug(f"[Hermes适配器] 已发送数据到Hermes：{data}")
+                logger.debug(f"已发送数据到Hermes：{data}")
             except Exception as e:
                 Status.ws发送失败 += 1
-                logger.error(f"[Hermes适配器] WebSocket 发送失败: {e}", exc_info=True)
-                logger.error(f"[Hermes适配器] 发送失败，原始数据: {data}")
+                logger.error(f"WebSocket 发送失败: {e}", exc_info=True)
+                logger.error(f"发送失败，原始数据: {data}")
 
     async def ws连接循环(self):
         """WebSocket 重连循环"""
@@ -51,14 +51,14 @@ class WsClient:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[Hermes适配器] WebSocket 连接异常: {e}")
+                logger.error(f"WebSocket 连接异常: {e}")
     
             if self.ws已连接:
-                logger.info("[Hermes适配器] WebSocket 断开，准备重连...")
+                logger.info("WebSocket 断开，准备重连...")
                 self.ws已连接 = False
                 Status.ws断开次数 += 1
     
-            logger.info(f"[Hermes适配器] 等待 {self.ws重连延迟:.1f}s 后重连...")
+            logger.info(f"等待 {self.ws重连延迟:.1f}s 后重连...")
             await asyncio.sleep(self.ws重连延迟)
 
     async def 连接到ws(self):
@@ -67,7 +67,7 @@ class WsClient:
         if self.hermes_token:
             头['Authorization'] = f'Bearer {self.hermes_token}'
 
-        logger.info(f"[Hermes适配器] 正在连接到 Hermes: {self.hermes_ws_url}")
+        logger.info(f"正在连接到 Hermes: {self.hermes_ws_url}")
 
         async with websockets.connect(
             self.hermes_ws_url,
@@ -77,8 +77,8 @@ class WsClient:
         ) as ws:
             self.ws服务 = ws
 
-            logger.info("[Hermes适配器] WebSocket 已连接到 Hermes")
-            logger.info(f"[Hermes适配器] 机器人qq：{self.机器人qq}")
+            logger.info("WebSocket 已连接到 Hermes")
+            logger.info(f"机器人qq：{self.机器人qq}")
             self.ws已连接 = True
             Status.ws连接次数 += 1
 
@@ -92,9 +92,9 @@ class WsClient:
             async for 原始消息 in ws:
                 try:
                     await self.处理ws消息(原始消息)
-                    logger.info("[Hermes适配器] 收到来自Hermes的消息")
+                    logger.info("收到来自Hermes的消息")
                 except Exception as e:
-                    logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
+                    logger.error(f"处理 WebSocket 消息失败: {e}", exc_info=True)
 
     # 在 ws_client.py 的 WsClient 类中添加一个后台任务方法
 
@@ -102,16 +102,16 @@ class WsClient:
         """后台任务：转发 Hermes 消息到 NapCat，并将结果发回 Hermes"""
         try:
             result = await self.NapCatSend.发送data消息到NapCat(data)
-            logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的结果：{result}")
+            logger.debug(f"转发来自Hermes的消息到NapCat的结果：{result}")
             await self.发送ws消息(result)
         except Exception as e:
-            logger.error(f"[Hermes适配器] 处理 WebSocket 消息失败: {e}", exc_info=True)
+            logger.error(f"处理 WebSocket 消息失败: {e}", exc_info=True)
 
     async def 处理ws消息(self, raw):
         data = json.loads(raw)
         Status.ws收到消息 += 1
         # 原日志调用，完全保留
-        logger.debug(f"[Hermes适配器] 转发来自Hermes的消息到NapCat的数据：{data}")
+        logger.debug(f"转发来自Hermes的消息到NapCat的数据：{data}")
 
         # 关键改动：创建后台任务，不再 await，避免阻塞
         asyncio.create_task(self._转发到NapCat并回响应(data))

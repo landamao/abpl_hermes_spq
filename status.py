@@ -92,4 +92,4 @@ class Status:
                 continue
             if isinstance(getattr(cls, attr), int):
                 setattr(cls, attr, 0)
-        logger.info("[Hermes适配器] 状态计数器已重置")
+        logger.info("状态计数器已重置")

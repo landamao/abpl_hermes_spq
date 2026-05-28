@@ -39,19 +39,19 @@ class ReverseHTTPServer:
         echo = body.pop('echo', None)
         params = body
 
-        logger.info(f"[Hermes适配器] 反向HTTP收到请求: {action}")
-        logger.debug(f"[Hermes适配器] 反向HTTP请求参数: {params}")
+        logger.info(f"反向HTTP收到请求: {action}")
+        logger.debug(f"反向HTTP请求参数: {params}")
 
         # 通过 NapCatSend 转发到 NapCat
         try:
             data = {"action": action, "params": params, "echo": echo}
             result = await self.napcat_send.发送data消息到NapCat(data)
             Status.反向HTTP请求 += 1
-            logger.debug(f"[Hermes适配器] 反向HTTP转发结果: {result}")
+            logger.debug(f"反向HTTP转发结果: {result}")
             return web.json_response(result)
         except Exception as e:
             Status.反向HTTP失败 += 1
-            logger.error(f"[Hermes适配器] 反向HTTP转发失败: {e}", exc_info=True)
+            logger.error(f"反向HTTP转发失败: {e}", exc_info=True)
             return web.json_response({
                 "status": "failed", "retcode": -1,
                 "data": None, "msg": str(e), "echo": echo}, status=500)
@@ -73,10 +73,10 @@ class ReverseHTTPServer:
         site = web.TCPSite(self._runner, host, self.端口)
         try:
             await site.start()
-            logger.info(f"[Hermes适配器] 反向HTTP服务器已启动: http://{host}:{self.端口}")
-            logger.info(f"[Hermes适配器] Hermes应将请求发送到: http://127.0.0.1:{self.端口}/<action>")
+            logger.info(f"反向HTTP服务器已启动: http://{host}:{self.端口}")
+            logger.info(f"Hermes应将请求发送到: http://127.0.0.1:{self.端口}/<action>")
         except OSError as e:
-            logger.error(f"[Hermes适配器] 反向HTTP服务器启动失败: {e}", exc_info=True)
+            logger.error(f"反向HTTP服务器启动失败: {e}", exc_info=True)
             await self._runner.cleanup()
             self._runner = None
 
@@ -85,4 +85,4 @@ class ReverseHTTPServer:
         if self._runner:
             await self._runner.cleanup()
             self._runner = None
-            logger.info("[Hermes适配器] 反向HTTP服务器已停止")
+            logger.info("反向HTTP服务器已停止")

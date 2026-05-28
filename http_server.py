@@ -44,9 +44,9 @@ class 指令执行HTTP服务器:
             await self._runner.setup()
             self._site = web.TCPSite(self._runner, host, port)
             await self._site.start()
-            logger.info(f"[Hermes适配器] 指令执行 HTTP 服务器已启动: http://{host}:{port}")
+            logger.info(f"指令执行 HTTP 服务器已启动: http://{host}:{port}")
         except Exception as e:
-            logger.error(f"[Hermes适配器] 启动指令执行 HTTP 服务器失败: {e}", exc_info=True)
+            logger.error(f"启动指令执行 HTTP 服务器失败: {e}", exc_info=True)
 
     async def stop(self):
         """停止 HTTP 服务器"""
@@ -54,7 +54,7 @@ class 指令执行HTTP服务器:
             await self._site.stop()
         if self._runner:
             await self._runner.cleanup()
-        logger.info("[Hermes适配器] 指令执行 HTTP 服务器已停止")
+        logger.info("指令执行 HTTP 服务器已停止")
 
     # ========== 认证 ==========
 
@@ -116,7 +116,7 @@ class 指令执行HTTP服务器:
                 {'success': False, 'error': '无效的 JSON 格式'}, status=400)
         except Exception as e:
             self._error_count += 1
-            logger.error(f"[Hermes适配器] 执行指令失败: {e}", exc_info=True)
+            logger.error(f"执行指令失败: {e}", exc_info=True)
             return web.json_response(
                 {'success': False, 'error': str(e)}, status=500)
 

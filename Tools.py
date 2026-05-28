@@ -24,11 +24,14 @@ def 用户名(data: dict) -> str:
 
 def 纯文本(data: dict) -> str:
     text = ''
-    messages = data.get('message', [])
-    for i in messages:
-        if i.get('type') == 'text':
-            text += ' ' + str(i.get('data', {}).get('text', ''))
-    return text.strip()
+    messages = data.get('message')
+    if isinstance(messages, list):
+        for i in messages:
+            if i.get('type') == 'text':
+                text += ' ' + str(i.get('data', {}).get('text', ''))
+        return text.strip()
+    else:
+        return messages or ''
 
 def 引用ID(data: dict) -> str|None:
     """

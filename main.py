@@ -12,7 +12,7 @@ from .status import Status
 class Hermes适配器(Star):
     """中央管理器"""
     def __init__(self, context: Context, config: AstrBotConfig) -> None:
-        logger.debug("[Hermes适配器] __init__开始")
+        logger.debug("__init__开始")
         super().__init__(context)
         self.config: AstrBotConfig = config
         self.群事件:dict[str, AiocqhttpMessageEvent] = {}
@@ -40,7 +40,7 @@ class Hermes适配器(Star):
         try:
             管理员列表 = context.get_config()["admins_id"]
         except Exception as e:
-            logger.error("[Hermes适配器] 获取管理员列表失败，你可在代码中手动配置管理员，错误信息：\n" + str(e))
+            logger.error("获取管理员列表失败，你可在代码中手动配置管理员，错误信息：\n" + str(e))
             管理员列表 = []
 
         def 清理列表(l: list) -> list[str]:
@@ -101,6 +101,10 @@ class Hermes适配器(Star):
             self.引用唤醒: bool = 过滤配置['引用唤醒']
             self.艾特机器人触发: bool = 过滤配置['艾特机器人触发']
             self.触发关键词: list[str] = 清理列表(过滤配置['触发关键词'])
+            self.触发关键词字典:dict[str,str] = {
+                i.replace('-d', '').replace('-s', '').replace('-e', ''): i
+                for i in self.触发关键词
+            }  #参数映射，触发时照的
             self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
         else:
             self.私聊转发所有消息: bool = False
@@ -166,7 +170,7 @@ class Hermes适配器(Star):
         self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
         self.ws.机器人qq = config['其他配置']['机器人qq']
 
-        logger.debug("[Hermes适配器] __init__完成")
+        logger.debug("__init__完成")
 
 
     # ========== 消息处理 ==========
@@ -190,9 +194,10 @@ class Hermes适配器(Star):
             if qq := str(raw.get('user_id', "")):
                 self.私聊事件[qq] = event
         if self.跳过指令 and (l:=text.strip().split()) and (l[0] in self.所有指令):
-                return
+            logger.debug(f"跳过框架指令：{text}")
+            return
         if not self.ws.ws已连接:
-            logger.debug(f"[Hermes适配器] Hermes WebSocket 未连接")
+            logger.debug(f"Hermes WebSocket 未连接")
             return
 
         转发, data = await self.检查转发到Hermes(event)
@@ -201,15 +206,16 @@ class Hermes适配器(Star):
             return
         if 转发 and self.处理冲突(event):
             来源 = "群聊" if 群号 else "私聊"
+            logger.debug(f"转发的事件体：\n{data}")
             await self.ws.发送ws消息(data)
             if self.转发时贴表情:
                 if 群号:
                     await self.NapCatSend.贴表情(data)
                 else:
                     await self.NapCatSend.戳一戳(raw.get('user_id'))
-            logger.info(f"[Hermes适配器] 已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
+            logger.info(f"已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
-        logger.debug(f"[Hermes适配器] 转发检测未通过")
+        logger.debug(f"转发检测未通过")
 
     @filter.on_llm_request(priority=-sys.maxsize)
     async def llm请求前(self, event: AiocqhttpMessageEvent, _):
@@ -224,9 +230,9 @@ class Hermes适配器(Star):
                     await self.NapCatSend.贴表情(data)
                 else:
                     await self.NapCatSend.戳一戳(raw.get('user_id'))
-            logger.info("[Hermes适配器] 已跟随框架唤醒")
+            logger.info("已跟随框架唤醒")
             event.stop_event()
-            logger.info(f"[Hermes适配器] 已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
+            logger.info(f"已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
             return
 
     @filter.on_llm_response(priority=sys.maxsize)
@@ -280,7 +286,7 @@ class Hermes适配器(Star):
             Status.LLM工具调用 += 1
             return f"已向 Hermes Agent 发送任务: {task}。Hermes 会自主完成任务并回复结果。"
         except Exception as e:
-            logger.error(f"[Hermes适配器] LLM工具执行失败: {e}", exc_info=True)
+            logger.error(f"LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
     @filter.llm_tool("execute_command")
@@ -327,7 +333,7 @@ class Hermes适配器(Star):
                 return f"指令执行失败: {result.get('error', '未知错误')}"
         except Exception as e:
             Status.指令失败 += 1
-            logger.error(f"[Hermes适配器] LLM工具执行指令失败: {e}", exc_info=True)
+            logger.error(f"LLM工具执行指令失败: {e}", exc_info=True)
             return f"执行指令失败: {str(e)}"
 
     @filter.llm_tool("hermes_status")
@@ -407,28 +413,29 @@ class Hermes适配器(Star):
     def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
         """处理 LLM 和 Hermes 同时唤醒时的冲突"""
         if self.同时唤醒处理方式 == '只用Hermes':
-            logger.info("[Hermes适配器] 终止事件，使用hermes")
+            logger.info("终止事件，使用hermes")
             event.stop_event()
             return True
         elif self.同时唤醒处理方式 == '都处理':
             if event.is_at_or_wake_command:
-                logger.info("[Hermes适配器] 已同时唤醒")
+                logger.info("已同时唤醒")
             return True
         elif self.同时唤醒处理方式 == '不使用Hermes':
             if event.is_at_or_wake_command:
-                logger.info("[Hermes适配器] llm已唤醒，不使用hermes")
+                logger.info("llm已唤醒，不使用hermes")
                 return False
-            logger.info("[Hermes适配器] llm未唤醒，使用hermes")
+            logger.info("llm未唤醒，使用hermes")
             event.stop_event()
             return True
         return False
 
     async def 检查转发到Hermes(self, event: AiocqhttpMessageEvent) -> tuple[bool, dict]:
         """检查是否通过过滤配置"""
-        raw: dict = event.message_obj.raw_message
+        raw: dict = dict(event.message_obj.raw_message)
         群号 = str(raw.get('group_id', ""))
         qq = str(raw.get('user_id', ""))
         text = 纯文本(raw)
+        logger.debug(f"消息文本：{text}")
         指令前缀 = self.自定义指令前缀
         if 指令前缀 != '/' and text.startswith('/'):
             return False, raw  #防止意外指令被转发
@@ -468,11 +475,117 @@ class Hermes适配器(Star):
             return True, raw
         if text.startswith(指令前缀):
             return await self.指令检查(event, raw, text, qq)
-        if any(i in text for i in self.触发关键词):
-            if text.startswith(指令前缀):
-                return await self.指令检查(event, raw, text, qq)
-            return True, raw
+        for i in self.触发关键词:
+            logger.debug(f"关键词：{i}")
+            logger.debug(f"-s in i ：{'-s' in i}，-d in i：{'-d' in i}")
+            if "-s" in i:
+                logger.debug(f"命中第一条-s")
+                s = i.replace('-s', '').strip()
+                需要去除 = False
+                if "-d" in s:
+                    s = s.replace('-d', '').strip()
+                    需要去除 = True
+                logger.debug(f"处理后s：{s}")
+                if text.startswith(s):
+                    logger.debug(f"触发前缀{s}")
+                    if 需要去除: #去除消息文本开头的s，实际上触发的是s而不是i
+                        return True, self.去除关键词(raw, s, 's')
+                    return True, raw
+            elif '-e' in i:
+                logger.debug(f"命中第二条-e")
+                s = i.replace('-e', '').strip()
+                需要去除 = False
+                if '-d' in s:
+                    需要去除 = True
+                    s = s.replace('-d', '').strip()
+                logger.debug(f"处理后s：{s}")
+                if text.endswith(s):
+                    logger.debug(f"触发后缀{s}")
+                    if 需要去除: #去除消息文本末尾的s，实际上触发的是s而不是i
+                        return True, self.去除关键词(raw, s, 'e')
+                    return True, raw
+            elif '-d' in i:
+                logger.debug(f"命中第三条-d")
+                s = i.replace('-d', '').strip()
+                logger.debug(f"处理后s：{s}")
+                if s in text:
+                    logger.error(f"触发含有{s}")
+                    return True, self.去除关键词(raw, s)
+            elif i in text:
+                logger.debug(f"命中第四条")
+                logger.debug(f"触发含有{i}")
+                return True, raw
         return False, raw
+
+    @staticmethod
+    def 去除关键词(raw:dict, 关键词:str, 模式:str='in') -> dict:
+        """
+        Args:
+            raw: 原始NapCat事件体
+            关键词: 需要去除的关键词
+            模式: s,e,in去除模式
+        """
+        message:dict|str = raw.get('message')
+        raw_message:str = raw.get('raw_message', '').strip()
+        if 模式 == 's':
+            if isinstance(message, str):
+                raw['message'] = message.strip()[len(关键词):]
+            else:
+                for i in message:
+                    if i.get('type') == 'text':
+                        i['data']['text'] = i['data']['text'][len(关键词):]  #标准结果理论上可以直接[]访问
+                        break
+            if raw_message.startswith('[CQ:'):
+                for i, j in enumerate(raw_message):
+                    if j == ']' and not raw_message[i + 1:].strip().startswith('[CQ:'):
+                        start_str = raw_message[:i + 1].strip()
+                        end_str = raw_message[i + 1:].strip()
+                        处理后 = start_str + end_str[len(关键词):]
+                        break
+                else:
+                    处理后 = raw_message[len(关键词):]
+            else:
+                处理后 = raw_message[len(关键词):]
+            raw['raw_message'] = 处理后
+        elif 模式 == 'e':
+            if isinstance(message, str):
+                raw['message'] = message.strip()[:len(message)-len(关键词)]
+            else:
+                data = {}
+                for i in message:
+                    if i.get('type') == 'text':
+                        data = i.get('data')
+                        continue
+                if data:
+                    text = data['text']
+                    data['text'] = text[:len(text)-len(关键词)]
+
+            if raw_message.endswith(关键词):
+                处理后 = raw_message[:len(raw_message) - len(关键词)]
+            else:
+                index = 0
+                for i, j in enumerate(raw_message):
+                    if raw_message[i:i + 4] == '[CQ:':
+                        index = i
+                if index:
+                    start_str = raw_message[:index].strip()
+                    end_str = raw_message[index:].strip()
+                    处理后 = start_str[:len(start_str) - len(关键词)] + end_str
+                else:
+                    处理后 = raw_message[:len(raw_message) - len(关键词)]
+            raw['raw_message'] = 处理后
+        else:
+            if isinstance(message, str):
+                raw['message'] = message.replace(关键词, '', 1)
+            else:
+                for i in message:
+                    if i.get('type') == 'text':
+                        if 关键词 in (text := i['data']['text']):
+                            i['data']['text'] = text.replace(关键词, '', 1)
+                            break
+            raw['raw_message'] = raw_message.replace(关键词, '', 1)
+        return raw
+
 
     async def 指令检查(self, event: AiocqhttpMessageEvent, raw, text, qq) -> tuple[bool, dict]:
         """指令检查"""
@@ -527,20 +640,20 @@ class Hermes适配器(Star):
         """从 AstrBot 上下文主动发现 OneBot bot 实例"""
         platform_manager = getattr(self.context, "platform_manager", None)
         if not platform_manager:
-            logger.warning("[Hermes适配器] 无法获取 platform_manager")
+            logger.warning("无法获取 platform_manager")
             return None
 
         get_insts = getattr(platform_manager, "get_insts", None)
         if not callable(get_insts):
-            logger.warning("[Hermes适配器] platform_manager 没有 get_insts 方法")
+            logger.warning("platform_manager 没有 get_insts 方法")
             return None
 
         platforms = get_insts()
         if not platforms:
-            logger.warning("[Hermes适配器] 未发现任何平台实例")
+            logger.warning("未发现任何平台实例")
             return None
 
-        # logger.info(f"[Hermes适配器] 发现 {len(platforms)} 个平台实例")
+        # logger.info(f"发现 {len(platforms)} 个平台实例")
 
         for platform in platforms:
             bot_client = None
@@ -557,17 +670,17 @@ class Hermes适配器(Star):
             if bot_client and hasattr(bot_client, "call_action"):
                 if type(bot_client).__name__ != "CQHttp":
                     continue
-                logger.info(f"[Hermes适配器] 主动发现 NapCat（OneBot） 实例: {type(bot_client).__name__}")
+                logger.info(f"主动发现 NapCat（OneBot） 实例: {type(bot_client).__name__}")
                 return bot_client
 
-        logger.warning("[Hermes适配器] 未发现可用的 OneBot 实例")
+        logger.warning("未发现可用的 OneBot 实例")
         return None
 
     # ========== 生命周期 ==========
 
     async def initialize(self):
         """异步初始化"""
-        logger.debug("[Hermes适配器] initialize开始")
+        logger.debug("initialize开始")
         if self.指令管理器:
             self.指令管理器.重建指令缓存()
         if self.启用指令HTTP服务器:
@@ -579,14 +692,14 @@ class Hermes适配器(Star):
         if self.消息发送方式 == "框架已有的WebSocket":
             bot = await self._discover_bot_instance()
             if not bot:
-                logger.warning("[Hermes适配器] 未获取到NapCat bot实例当前发送消息方式为框架已有的WebSocket，请在qq发送任意消息以激活")
+                logger.warning("未获取到NapCat bot实例当前发送消息方式为框架已有的WebSocket，请在qq发送任意消息以激活")
             else:
                 from .aicqhttpevent import AiocqhttpMessageEvent
                 event = AiocqhttpMessageEvent(bot)
                 self.set_event(event)
 
-        logger.debug("[Hermes适配器] initialize完成")
-        logger.info("[Hermes适配器] 初始化完成")
+        logger.debug("initialize完成")
+        logger.info("初始化完成")
 
     async def terminate(self):
         """插件终止时清理资源"""
@@ -597,8 +710,8 @@ class Hermes适配器(Star):
         await self.ws.ws停止()
         if self.NapCatSend.http会话 and not self.NapCatSend.http会话.closed:
             await self.NapCatSend.http会话.close()
-            logger.info("[Hermes适配器] HTTP 会话已关闭")
-        logger.info("[Hermes适配器] 插件已停止")
+            logger.info("HTTP 会话已关闭")
+        logger.info("插件已停止")
 
 
 # 异步单线程
