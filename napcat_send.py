@@ -291,7 +291,7 @@ class NapCatSend:
         params = data['params']
         if action not in ("send_group_msg", "send_msg"):
             return data
-        # 仅在群聊中启用自动艾特（私聊通常不需要）
+        # 仅在群聊中启用自动艾特，私聊没有艾特
         if action == "send_msg":
             if not params.get('group_id'):
                 return data

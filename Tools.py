@@ -102,3 +102,71 @@ def 构造文本NapCat事件体(event, 文本: str, **kwargs) -> dict:
         for key, value in kwargs.items():
             基础字段[key] = value
     return 基础字段
+
+def 去除关键词(raw:dict, 关键词:str, 模式:str='in') -> dict:
+    """
+    Args:
+        raw: 原始NapCat事件体
+        关键词: 需要去除的关键词
+        模式: s,e,in去除模式
+    """
+    message:dict|str = raw.get('message')
+    raw_message:str = raw.get('raw_message', '').strip()
+    if 模式 == 's':
+        if isinstance(message, str):
+            raw['message'] = message.strip()[len(关键词):]
+        else:
+            for i in message:
+                if i.get('type') == 'text':
+                    i['data']['text'] = i['data']['text'][len(关键词):]  #标准结果理论上可以直接[]访问
+                    break
+        if raw_message.startswith('[CQ:'):
+            for i, j in enumerate(raw_message):
+                if j == ']' and not raw_message[i + 1:].strip().startswith('[CQ:'):
+                    start_str = raw_message[:i + 1].strip()
+                    end_str = raw_message[i + 1:].strip()
+                    处理后 = start_str + end_str[len(关键词):]
+                    break
+            else:
+                处理后 = raw_message[len(关键词):]
+        else:
+            处理后 = raw_message[len(关键词):]
+        raw['raw_message'] = 处理后
+    elif 模式 == 'e':
+        if isinstance(message, str):
+            raw['message'] = message.strip()[:len(message)-len(关键词)]
+        else:
+            data = {}
+            for i in message:
+                if i.get('type') == 'text':
+                    data = i.get('data')
+                    continue
+            if data:
+                text = data['text']
+                data['text'] = text[:len(text)-len(关键词)]
+
+        if raw_message.endswith(关键词):
+            处理后 = raw_message[:len(raw_message) - len(关键词)]
+        else:
+            index = 0
+            for i, j in enumerate(raw_message):
+                if raw_message[i:i + 4] == '[CQ:':
+                    index = i
+            if index:
+                start_str = raw_message[:index].strip()
+                end_str = raw_message[index:].strip()
+                处理后 = start_str[:len(start_str) - len(关键词)] + end_str
+            else:
+                处理后 = raw_message[:len(raw_message) - len(关键词)]
+        raw['raw_message'] = 处理后
+    else:
+        if isinstance(message, str):
+            raw['message'] = message.replace(关键词, '', 1)
+        else:
+            for i in message:
+                if i.get('type') == 'text':
+                    if 关键词 in (text := i['data']['text']):
+                        i['data']['text'] = text.replace(关键词, '', 1)
+                        break
+        raw['raw_message'] = raw_message.replace(关键词, '', 1)
+    return raw
