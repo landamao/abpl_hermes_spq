@@ -12,19 +12,19 @@
 }
 
 
-def 用户名(data: dict) -> str:
+def 用户名(raw: dict) -> str:
     """
     从消息数据中提取发送者的显示名称。
     优先使用群名片（card），若为空或不存在则使用昵称（nickname）。
     """
-    sender = data.get('sender', {})
+    sender = raw.get('sender', {})
     card = sender.get('card', '')
     nickname = sender.get('nickname', '')
     return card or nickname
 
-def 纯文本(data: dict) -> str:
+def 纯文本(raw: dict) -> str:
     text = ''
-    messages = data.get('message')
+    messages = raw.get('message')
     if isinstance(messages, list):
         for i in messages:
             if i.get('type') == 'text':
@@ -33,12 +33,12 @@ def 纯文本(data: dict) -> str:
     else:
         return messages or ''
 
-def 引用ID(data: dict) -> str|None:
+def 引用ID(raw: dict) -> str|None:
     """
     从消息数据中提取回复的消息 ID。
     如果存在回复（type 为 'reply'），返回其 data.id；否则返回 None。
     """
-    message_list = data.get('message', [])
+    message_list = raw.get('message', [])
     message_id = None
     for segment in message_list:
         if segment.get('type') == 'reply':
@@ -48,13 +48,13 @@ def 引用ID(data: dict) -> str|None:
         return message_id
     return None
 
-def 艾特ID(data: dict) -> list[str]:
+def 艾特ID(raw: dict) -> list[str]:
     """
     从消息数据中提取所有艾特（type 为 'at'）的 QQ 号。
     返回 QQ 号字符串列表，可能包含 'all'（全体成员）。
     如果没有艾特，返回空列表。
     """
-    message_list = data.get('message', [])
+    message_list = raw.get('message', [])
     at_list = []
     for segment in message_list:
         if segment.get('type') == 'at':

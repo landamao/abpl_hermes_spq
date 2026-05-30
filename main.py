@@ -516,7 +516,13 @@ class Hermes适配器(Star):
     async def 指令检查(self, event: AiocqhttpMessageEvent, raw:dict, text:str, qq:str) -> tuple[bool, dict]:
         """指令检查"""
         艾特列表 = 艾特ID(raw)
-        if 艾特列表 and raw.get('self_id') not in 艾特列表:
+        引用消息ID = 引用ID(raw)
+        selfID = str(raw.get('self_id'))
+        if 艾特列表 and str(raw.get('self_id')) not in 艾特列表:
+            logger.debug("不是艾特机器人的消息，跳过")
+            return False, raw
+        if 引用消息ID and selfID != 引用消息ID:
+            logger.debug("不是回复机器人的消息，跳过")
             return False, raw
         指令文本 =  "/" + text[len(self.自定义指令前缀):]
         if self.开启中文映射 and 指令文本 in 授权命令映射:
