@@ -39,7 +39,7 @@ class 指令执行HTTP服务器:
             app.router.add_get('/api/commands', self._handle_list_commands)
             app.router.add_get('/api/commands/for_hermes', self._handle_hermes_commands)
             app.router.add_get('/api/command/{command_name}', self._handle_command_detail)
-            host = urlparse(host).hostname
+            host = urlparse(host).hostname if '://' in host else host
             self._runner = web.AppRunner(app)
             await self._runner.setup()
             self._site = web.TCPSite(self._runner, host, port)

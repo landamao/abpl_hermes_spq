@@ -69,7 +69,7 @@ class ReverseHTTPServer:
         self._runner = web.AppRunner(app)
         await self._runner.setup()
 
-        host = urlparse(self.地址).hostname or '0.0.0.0'
+        host = urlparse(self.地址).hostname if '://' in self.地址 else self.地址
         site = web.TCPSite(self._runner, host, self.端口)
         try:
             await site.start()

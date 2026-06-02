@@ -57,7 +57,7 @@ class NapCatSend:
         self.敏感字符列表: list[str] = 脱敏配置['敏感字符列表']
         self.替换目标: str = 脱敏配置['替换目标']
         自动添加密钥: bool = 脱敏配置['自动添加密钥']
-        self.Hermes配置文件路径 = 脱敏配置['Hermes配置文件路径']
+        self.Hermes配置文件路径 = 脱敏配置['Hermes配置文件路径'].strip().strip('"\'')
 
         if 自动添加密钥:
             self._加载api密钥()
