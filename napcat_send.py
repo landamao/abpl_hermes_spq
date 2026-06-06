@@ -78,6 +78,15 @@ class NapCatSend:
         if "*" in self.触发艾特关键词:
             self.触发艾特关键词 = ["*"] # 先设置好，避免无意义遍历判断
 
+        self.开启快速授权 = config['授权配置']['开启快速授权']
+        if self.开启快速授权:
+            self.触发授权关键词 = config['授权配置']['触发授权关键词']
+            if not self.触发授权关键词:
+                config['授权配置']['触发授权关键词'] = self.触发授权关键词 = config.schema['授权配置']['items']['触发授权关键词']['default']
+        else:
+            self.触发授权关键词 = []
+        self.触发授权关键词 = [ i.lower() for i in self.触发授权关键词 ]
+        self.触发艾特关键词 = [ i.lower() for i in self.触发艾特关键词 ]
         logger.info(f"自动艾特用户：{self.自动艾特用户}")
         logger.info(f"触发关键词：{self.触发艾特关键词}")
 
@@ -154,8 +163,15 @@ class NapCatSend:
 
     async def 发送data消息到NapCat(self, data:dict) -> dict:
         """所有发送消息到NapCat统一接口"""
+        action = data.get('action')
+        params = data.get('params')
+        群号 = params.get('group_id')
+        qq = params.get('user_id')
         data = self.数据文本脱敏(data)
-        data = self.自动艾特(data)
+        需要艾特, 需要授权 = self.包含关键词(params, action)
+        logger.debug(f"需要艾特，需要授权：{需要艾特}， {需要授权}")
+        if 需要艾特:
+            data['params'] = self.自动艾特(params)
         if self.消息发送方式 == "框架已有的WebSocket":
             结果 = await self._通过框架发送消息到NapCat(data)
         elif self.消息发送方式 == "NapCat Http 服务器":
@@ -163,6 +179,8 @@ class NapCatSend:
         else:
             logger.critical(f"意外未知的消息发送方式：{self.消息发送方式}\n原数据：{str(data)}")
             结果 = await self._通过框架发送消息到NapCat(data)
+        if 需要授权:
+            MessageId.add_sq(结果, 群号 or qq)
         return 结果
 
     def _加载api密钥(self):
@@ -281,41 +299,11 @@ class NapCatSend:
             logger.error(f"API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             return {"echo": echo, "status": "failed", "retcode": 100, "msg": str(e), "data": None}
 
-    def 自动艾特(self, data: dict) -> dict:
+    def 自动艾特(self, params: dict) -> dict:
         """将数据增加自动艾特"""
-        if not self.自动艾特用户:  # 单个int qq号
-            return data
-        if not ( "action" in data and "params" in data) :
-            return data
-        action = data['action']
-        params = data['params']
-        if action not in ("send_group_msg", "send_msg"):
-            return data
-        # 仅在群聊中启用自动艾特，私聊没有艾特
-        if action == "send_msg":
-            if not params.get('group_id'):
-                return data
-        消息组 = params.get('message')
-        if not 消息组:
-            return data
-
-        # 检查消息中是否包含触发关键词
-        包含关键词 = False
-        if self.触发艾特关键词[0] == "*":
-            包含关键词 = True
-        else:
-            if isinstance(消息组, str):
-                if any( i in 消息组 for i in self.触发艾特关键词 ):
-                    包含关键词 = True
-            elif isinstance(消息组, list):
-                for 组件 in 消息组:
-                    if 组件.get('type') == 'text':
-                        text = 组件.get('data', {}).get('text', '')
-                        if any( i in text for i in self.触发艾特关键词 ):
-                            包含关键词 = True
-                            break
-        if not 包含关键词:
-            return data
+        if 'message' not in params:
+            return params
+        消息组 = params['message']
 
         # 构造艾特消息段
         艾特段 = {"type": "at", "data": {"qq": self.自动艾特用户}}
@@ -335,20 +323,50 @@ class NapCatSend:
 
         logger.debug(f"自动艾特：在消息中添加@用户{self.自动艾特用户}")
 
-        return data
+        return params
 
+    def 包含关键词(self, params, action) -> tuple[bool, bool]:
+        # 检查消息中是否包含艾特或授权触发关键词
+        if action not in ("send_group_msg", "send_msg"):
+            return False, False
+        if 'message' not in params:
+            return False, False
+        消息组 = params['message']
+        群号 = params.get('group_id')
+        自动艾特 = True
+        开启授权 = self.开启快速授权
+        if (not self.自动艾特用户) or (not 群号):
+            自动艾特 = False
+        if not (自动艾特 or 开启授权):
+            return False, False
+        需要艾特 = False
+        需要授权 = False
+        if self.触发艾特关键词[0] == "*":
+            需要艾特 = True
+        if isinstance(消息组, str):
+            消息组 = 消息组.lower()
+            if 自动艾特 and (not 需要艾特) and any( i in 消息组 for i in self.触发艾特关键词 ):
+                需要艾特 = True
+            if 开启授权 and any(i in 消息组 for i in self.触发授权关键词):
+                需要授权 = True
+        elif isinstance(消息组, list):
+            for 组件 in 消息组:
+                if 组件.get('type') == 'text':
+                    text = 组件.get('data', {}).get('text', '').lower()
+                    if 自动艾特 and (not 需要艾特) and any( i in text for i in self.触发艾特关键词 ):
+                        需要艾特 = True
+                    if 开启授权 and (not 需要授权) and any(i in text for i in self.触发授权关键词):
+                        需要授权 = True
+        return 需要艾特, 需要授权
 
-    def 数据文本脱敏(self, data:dict) -> dict:
+    def 数据文本脱敏(self, params:dict) -> dict:
         """对data中的文本进行脱敏，替换敏感字符"""
         if not self.敏感字符列表:
-            return data
+            return params
 
-        if "params"not in data:
-            return data
-        params = data['params']
         message = params.get('message')
         if message is None:
-            return data
+            return params
 
         替换前 = str(message)
 
@@ -376,6 +394,6 @@ class NapCatSend:
             for 敏感词 in self.敏感字符列表:
                 if 敏感词 in params['raw_message']:
                     params['raw_message'] = params['raw_message'].replace(敏感词, self.替换目标)
-            logger.debug(f"脱敏：已过滤消息中的敏感字符")
+            logger.warning(f"脱敏：已过滤消息中的敏感字符")
 
-        return data
+        return params

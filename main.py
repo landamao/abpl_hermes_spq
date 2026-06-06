@@ -1,4 +1,6 @@
 import sys, asyncio
+import time
+
 from astrbot.api.event import filter
 from astrbot.api.provider import LLMResponse
 from astrbot.api.all import Star, Context, AstrBotConfig
@@ -169,9 +171,9 @@ class Hermes适配器(Star):
 
         self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
         self.ws.机器人qq = config['其他配置']['机器人qq']
+        self.开启快速授权 = config['授权配置']['开启快速授权']
 
         logger.debug("__init__完成")
-
 
     # ========== 消息处理 ==========
 
@@ -179,13 +181,78 @@ class Hermes适配器(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 AiocqhttpMessageEvent"""
+        raw: dict = event.message_obj.raw_message
+        self.set_event(event)  #此event可以是任意AiocqhttpMessageEvent
+        群号 = str(raw.get('group_id', ""))
+        qq = str(raw.get('user_id', ""))
+        self_id = str(raw.get('self_id', ""))
+        if qq == self_id:
+            return
+        if self.开启快速授权:
+            if raw.get('sub_type') == 'poke':
+                if 群号:
+                    if MessageId.has_sq(群号) and all判断(self.允许的群组, 群号) and all判断(self.允许的用户, qq) and all判断(self.允许approve的用户, qq):
+                        data = 构造文本NapCat事件体(
+                            event, '/approve',
+                            message_type="group",
+                            message_format="array",
+                            post_type="message",
+                            sub_type="normal",
+                            sender={}
+                        )
+                        await self.ws.发送ws消息(data)
+                        logger.info(f"快速授权：群聊戳一戳触发 approve，群号={群号}，用户={qq}")
+                        MessageId.cl_sq(群号)
+                    return
+                else:
+                    if MessageId.has_sq(qq) and  all判断(self.私聊允许的用户, qq) and all判断(self.允许approve的用户, qq):
+                        data = 构造文本NapCat事件体(
+                            event, '/approve',
+                            message_type="friend",
+                            message_format="array",
+                            post_type="message",
+                            sub_type="normal",
+                            sender={}
+                        )
+                        await self.ws.发送ws消息(data)
+                        logger.info(f"快速授权：私聊戳一戳触发 approve，用户={qq}")
+                        MessageId.cl_sq(qq)
+                    return
+
+            if raw.get('notice_type') == 'group_msg_emoji_like':
+                mid = raw.get('message_id')
+                if 群号:
+                    if MessageId.eq_sq(mid, 群号) and all判断(self.允许的群组, 群号) and all判断(self.允许的用户, qq) and all判断(self.允许approve的用户, qq):
+                        data = 构造文本NapCat事件体(
+                            event, '/approve session',
+                            message_type="group",
+                            message_format="array",
+                            post_type="message",
+                            sub_type="normal",
+                            sender={}
+                        )
+                        await self.ws.发送ws消息(data)
+                        logger.info(f"快速授权：群聊表情回应触发 approve session，群号={群号}，用户={qq}，消息ID={mid}")
+                        MessageId.cl_sq(群号)
+                    return
+                else:
+                    if MessageId.eq_sq(mid, qq) and all判断(self.私聊允许的用户, qq) and all判断(self.允许approve的用户, qq):
+                        data = 构造文本NapCat事件体(
+                            event, '/approve session',
+                            message_type="friend",
+                            message_format="array",
+                            post_type="message",
+                            sub_type="normal",
+                            sender={}
+                        )
+                        await self.ws.发送ws消息(data)
+                        logger.info(f"快速授权：私聊表情回应触发 approve session，用户={qq}，消息ID={mid}")
+                        MessageId.cl_sq(qq)
+                    return
+
         if not (text:=event.get_message_str()):
-            # 不处理也不存没有文本的事件
             return
 
-        raw:dict = event.message_obj.raw_message
-
-        self.set_event(event)  #此event可以是任意AiocqhttpMessageEvent
 
         群号 = str(raw.get('group_id', ""))
         if 群号:
@@ -450,6 +517,7 @@ class Hermes适配器(Star):
                 return False, raw
             if self.跟随框架唤醒:
                 if text.startswith(指令前缀):
+                    MessageId.cl_sq(群号)
                     return await self.指令检查(event, raw, text, qq)
                 return True, raw
         else:
@@ -463,6 +531,7 @@ class Hermes适配器(Star):
                 return True, raw
             if self.私聊转发所有消息:
                 if text.startswith(指令前缀):
+                    MessageId.cl_sq(qq)
                     return await self.指令检查(event, raw, text, qq)
                 return True, raw  #每个return True之前都要作指令检查
         if text.startswith(指令前缀):

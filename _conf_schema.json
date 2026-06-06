@@ -235,12 +235,31 @@
                 "description": "触发艾特关键词",
                 "default": [
                     "Dangerous command requires approval",
+                    "reply `/approve`",
                     "需要审批的危险命令",
                     "⏳",
                     "⚠️",
                     "❌"
                 ],
-                "hint": "当消息中有这些关键词触发自动艾特，清空恢复默认，填“*”代表所有消息"
+                "hint": "当消息中有这些关键词触发自动艾特，不区分大小写，清空恢复默认，填“*”代表所有消息"
+            },
+            "开启快速授权": {
+                "type": "bool",
+                "description": "开启快速授权",
+                "default": true,
+                "hint": "开启后，可以更更方便的方式授权，戳一戳授权单次，贴表情授权会话"
+            },
+            "触发授权关键词": {
+                "type": "list",
+                "description": "触发授权关键词",
+                "default": [
+                    "reply `/approve`",
+                    "需要审批的危险命令"
+                ],
+                "hint": "当消息中有这些关键词时记录授权状态, 不区分大小写，清空恢复默认",
+                "condition": {
+                    "开启快速授权": true
+                }
             }
         }
     },
