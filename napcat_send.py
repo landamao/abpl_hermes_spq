@@ -163,11 +163,11 @@ class NapCatSend:
 
     async def 发送data消息到NapCat(self, data:dict) -> dict:
         """所有发送消息到NapCat统一接口"""
+        data['params'] = self.数据文本脱敏(data.get('params', {}))
         action = data.get('action')
         params = data.get('params')
         群号 = params.get('group_id')
         qq = params.get('user_id')
-        data = self.数据文本脱敏(data)
         需要艾特, 需要授权 = self.包含关键词(params, action)
         logger.debug(f"需要艾特，需要授权：{需要艾特}， {需要授权}")
         if 需要艾特:
