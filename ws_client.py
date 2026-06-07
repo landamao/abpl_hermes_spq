@@ -1,4 +1,5 @@
 import json, asyncio,websockets
+import time
 from .napcat_send import NapCatSend
 from .status import Status
 from .logger import logger
@@ -6,6 +7,9 @@ from .logger import logger
 class WsClient:
 
     def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend):
+        self.指令重启 = False
+        self.发送类型 = None
+        self.目标ID = None
         self.ws已连接 = False
         self.ws重连延迟 = 5
         self.NapCatSend = napcat_send
@@ -14,6 +18,9 @@ class WsClient:
         self.hermes_token = hermes_token
         self.ws服务 = None
         self.机器人qq = "纳西妲"
+        self.重启前时间 = None
+        self.重启时event = None
+        self.开启连接报告 = False
     # ========== Hermes WebSocket ==========
 
     async def ws开始(self):
@@ -81,6 +88,8 @@ class WsClient:
             logger.info(f"机器人qq：{self.机器人qq}")
             self.ws已连接 = True
             Status.ws连接次数 += 1
+            if self.开启连接报告 or self.重启时event:
+                await self._发送连接报告()
 
             await self.发送ws消息({
                 "type": "connect",
@@ -115,3 +124,41 @@ class WsClient:
 
         # 关键改动：创建后台任务，不再 await，避免阻塞
         asyncio.create_task(self._转发到NapCat并回响应(data))
+
+    def 设置重启状态(self, event):
+        self.指令重启 = True
+        self.重启前时间 = time.time()
+        self.重启时event = event
+
+    async def _发送连接报告(self):
+        """发送连接报告"""
+        if self.重启前时间:
+            重启前时间 = self.重启前时间
+            重启耗时 = time.time() - 重启前时间
+            连接报告文本 = (
+                "✅ Hermes重启完成\n"
+                "状态：已连接\n"
+                f"重启耗时：{重启耗时:.2f}s"
+            )
+        else:
+            连接报告文本 = (
+                "✅ 已连接到Hermes\n"
+                f"时间：{time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())}"
+            )
+        if self.重启时event:
+            event = self.重启时event
+            await event.send(event.plain_result(连接报告文本))
+
+        else:
+            动作 = "send_msg"
+            参数 = {"message": 连接报告文本}
+            if self.发送类型 == "群聊":
+                参数['group_id'] = self.目标ID
+            else:
+                参数['user_id'] = self.目标ID
+            结果 = await self.NapCatSend.发送动作参数到NapCat(动作, 参数)
+            logger.debug(f"连接报告发送结果：{结果}")
+
+        self.重启时event = None
+        self.重启前时间 = None
+        self.指令重启 = False

@@ -403,6 +403,40 @@
                 "description": "使用info代替debug日志",
                 "default": false,
                 "hint": "使用info代替debug日志，方便调试"
+            },
+            "启用Hermes连接报告": {
+                "type": "bool",
+                "description": "启用Hermes连接报告",
+                "default": false,
+                "hint": "是否启用启用Hermes连接报告"
+            },
+            "发送目标类型": {
+                "type": "string",
+                "description": "发送目标类型",
+                "options": ["群聊", "私聊"],
+                "default": "群聊",
+                "hint": "连接报告发送目标类型，主动消息只支持cqhttp发送",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
+            },
+            "发送目标ID": {
+                "type": "string",
+                "description": "发送目标ID",
+                "default": "",
+                "hint": "连接报告发送的目标ID，留空则不发送，若使用重启指令重启，则发送到该聊天室",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
+            },
+            "重启Hermes命令": {
+                "type": "string",
+                "description": "重启Hermes命令",
+                "default": "systemctl restart hermes",
+                "hint": "使用指令`/重启爱马仕`时执行的重启Hermes命令",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
             }
         }
     }

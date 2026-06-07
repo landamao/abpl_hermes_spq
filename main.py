@@ -1,5 +1,6 @@
+import subprocess
 import sys, asyncio
-import time
+import threading
 
 from astrbot.api.event import filter
 from astrbot.api.provider import LLMResponse
@@ -36,8 +37,7 @@ class Hermes适配器(Star):
             self.反向HTTP地址: str = 连接配置['反向HTTP地址'].strip()
             self.反向HTTP令牌: str = 连接配置['反向HTTP令牌'].strip()
         else:
-            self.反向HTTP地址: str = ""
-            self.反向HTTP令牌: str = ""
+            self.反向HTTP地址 = self.反向HTTP令牌 = ""
 
         try:
             管理员列表 = context.get_config()["admins_id"]
@@ -109,9 +109,7 @@ class Hermes适配器(Star):
             }  #参数映射，触发时照的
             self.同时唤醒处理方式: str = 过滤配置['同时唤醒处理方式']
         else:
-            self.私聊转发所有消息: bool = False
-            self.引用唤醒: bool = False
-            self.艾特机器人触发: bool = False
+            self.私聊转发所有消息 = self.引用唤醒 = self.艾特机器人触发 = False
             self.触发关键词: list[str] = []
             self.同时唤醒处理方式: str = ""
 
@@ -172,6 +170,14 @@ class Hermes适配器(Star):
         self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
         self.ws.机器人qq = config['其他配置']['机器人qq']
         self.开启快速授权 = config['授权配置']['开启快速授权']
+        self.启用Hermes连接报告 = config['其他配置']['启用Hermes连接报告']
+        if self.启用Hermes连接报告:
+            self.ws.开启连接报告 = True
+            self.重启命令:str = config['其他配置']['重启Hermes命令']
+            self.ws.发送类型 = config['其他配置']['发送目标类型']
+            self.ws.目标ID = config['其他配置']['发送目标ID']
+        else:
+            self.重启命令 = self.发送目标类型 = self.发送目标ID = ""
 
         logger.debug("__init__完成")
 
@@ -475,6 +481,44 @@ class Hermes适配器(Star):
         )
         yield _.plain_result(状态信息)
 
+    @filter.command("重启爱马仕", alias={"重启Hermes"})
+    async def Hermes重启指令(self, event: AiocqhttpMessageEvent):
+        """执行Hermes重启命令"""
+        yield event.plain_result("🔄 正在重启Hermes…")
+        self.ws.设置重启状态(event)
+
+        # 获取要执行的重启命令（假设 self.重启命令 是字符串或列表）
+        重启命令 = self.重启命令
+
+        def run_command():
+            """在子线程中执行重启命令"""
+            try:
+                # 如果重启命令是字符串且需要 shell 解析，使用 shell=True
+                # 如果已经是列表，使用列表形式避免 shell 注入风险
+                result = subprocess.run(
+                    重启命令,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30  # 可设置超时，避免卡死
+                )
+
+                if result.returncode == 0:
+                    logger.info(f"重启爱马仕命令执行成功: {重启命令}\n输出: {result.stdout}")
+                else:
+                    logger.error(f"重启命令失败，返回码 {result.returncode}\n错误: {result.stderr}")
+                    yield event.plain_result("❌ 重启命令执行失败，请前往控制台查看错误输出")
+            except subprocess.TimeoutExpired:
+                yield event.plain_result("⚠️ 重启命令执行超时")
+                logger.error(f"重启命令超时 (30秒): {重启命令}")
+            except Exception as e:
+                yield event.plain_result("❌ 重启命令执行失败，请前往控制台查看错误输出")
+                logger.error(f"执行重启命令时发生异常: {e}")
+
+        # 使用 threading.Thread 启动子线程
+        thread = threading.Thread(target=run_command, daemon=True)
+        thread.start()
+
     # ========== qq消息过滤 ==========（在此模块即可，不用过度模块化）
 
     def 处理冲突(self, event: AiocqhttpMessageEvent) -> bool:
@@ -691,8 +735,7 @@ class Hermes适配器(Star):
             await self.指令执行HTTP服务器.start(self._指令HTTP主机, self._指令HTTP端口)
         if self.开启反向HTTP:
             await self.反向HTTP.start()
-        await self.ws.ws开始()
-        await asyncio.sleep(0.1)
+
         if self.消息发送方式 == "框架已有的WebSocket":
             bot = await self._discover_bot_instance()
             if not bot:
@@ -701,6 +744,9 @@ class Hermes适配器(Star):
                 from .aicqhttpevent import AiocqhttpMessageEvent
                 event = AiocqhttpMessageEvent(bot)
                 self.set_event(event)
+
+        await asyncio.sleep(0.1)
+        await self.ws.ws开始()
 
         logger.debug("initialize完成")
         logger.info("初始化完成")
