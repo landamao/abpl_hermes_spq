@@ -310,10 +310,10 @@ class NapCatSend:
 
         # 修改 message
         if isinstance(消息组, str):
-            new_message = [艾特段, {"type": "text", "data": {"text": 消息组}}]
+            # str 可能包含 CQ 码，保持 str 格式用 CQ 码艾特，避免 CQ 码丢失解析
+            params['message'] = f"[CQ:at,qq={self.自动艾特用户}]{消息组}"
         else:  # list
-            new_message = [艾特段] + 消息组
-        params['message'] = new_message
+            params['message'] = [艾特段] + 消息组
 
         # 同步更新 raw_message（添加CQ码格式的艾特）
         raw_message = params.get('raw_message')

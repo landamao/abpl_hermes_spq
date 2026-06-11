@@ -493,26 +493,20 @@ class Hermes适配器(Star):
         def run_command():
             """在子线程中执行重启命令"""
             try:
-                # 如果重启命令是字符串且需要 shell 解析，使用 shell=True
-                # 如果已经是列表，使用列表形式避免 shell 注入风险
                 result = subprocess.run(
                     重启命令,
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=30  # 可设置超时，避免卡死
+                    timeout=30
                 )
-
                 if result.returncode == 0:
                     logger.info(f"重启爱马仕命令执行成功: {重启命令}\n输出: {result.stdout}")
                 else:
                     logger.error(f"重启命令失败，返回码 {result.returncode}\n错误: {result.stderr}")
-                    yield event.plain_result("❌ 重启命令执行失败，请前往控制台查看错误输出")
             except subprocess.TimeoutExpired:
-                yield event.plain_result("⚠️ 重启命令执行超时")
                 logger.error(f"重启命令超时 (30秒): {重启命令}")
             except Exception as e:
-                yield event.plain_result("❌ 重启命令执行失败，请前往控制台查看错误输出")
                 logger.error(f"执行重启命令时发生异常: {e}")
 
         # 使用 threading.Thread 启动子线程
