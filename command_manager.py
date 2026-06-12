@@ -70,7 +70,6 @@ class 指令管理器:
             if not 插件信息:
                 continue
 
-            插件实例, 指令名 = 插件信息
             指令名 = None
             别名 = []
             description = 处理器.desc or "无描述"

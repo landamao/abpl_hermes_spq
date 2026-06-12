@@ -1,16 +1,276 @@
-import os, json, yaml, random, aiohttp
+import aiohttp, functools
 from aiocqhttp import ActionFailed
+from typing import Any, Callable
 from astrbot.api.all import AstrBotConfig, BaseMessageComponent, MessageChain, Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from .logger import logger
 from .message_id import MessageId
 from .status import Status
+from .logger import logger
+
+
+class 发送事件:
+    """消息发送事件对象"""
+
+    def __init__(self, data: dict):
+        self._原始数据 = data
+        self._额外信息 = {}
+        self._已停止 = False
+        self._停止原因 = ""
+        self._发送结果: dict|None = None
+        self._已发送 = False
+
+    # ===== 数据访问 =====
+
+    @property
+    def data(self) -> dict:
+        """获取完整 data（可直接修改）"""
+        return self._原始数据
+
+    @property
+    def 动作(self) -> str:
+        """获取动作类型，如 send_group_msg"""
+        return self._原始数据.get('action', '')
+
+    @property
+    def 参数(self) -> dict:
+        """获取参数"""
+        return self._原始数据.get('params', {})
+
+    @property
+    def echo(self) -> Any:
+        """获取 echo"""
+        return self._原始数据.get('echo')
+
+    @property
+    def 消息(self):
+        """快捷获取 message"""
+        return self.参数.get('message')
+
+    @property
+    def 群号(self) -> str|None:
+        """快捷获取 group_id"""
+        return self.参数.get('group_id')
+
+    @property
+    def QQ号(self) -> str|None:
+        """快捷获取 user_id"""
+        return self.参数.get('user_id')
+
+    @property
+    def 是否群聊(self) -> bool:
+        return self.动作 in ('send_group_msg', 'send_msg')
+
+    @property
+    def 是否私聊(self) -> bool:
+        return self.动作 == 'send_private_msg'
+
+    # ===== 发送结果（发送后钩子可用） =====
+
+    @property
+    def 结果(self) -> dict|None:
+        """获取发送结果（仅发送后钩子可用）"""
+        return self._发送结果
+
+    @property
+    def 已发送(self) -> bool:
+        """消息是否已发送"""
+        return self._已发送
+
+    def 设置结果(self, 结果: dict):
+        """设置发送结果"""
+        self._发送结果 = 结果
+        self._已发送 = True
+
+    # ===== 流程控制 =====
+
+    def 停止(self, 原因: str = ""):
+        """阻止消息发送"""
+        self._已停止 = True
+        self._停止原因 = 原因
+        if 原因:
+            logger.debug(f"钩子停止发送: {原因}")
+
+    @property
+    def 已停止(self) -> bool:
+        return self._已停止
+
+    @property
+    def 停止原因(self) -> str:
+        return self._停止原因
+
+    # ===== 额外信息（钩子之间传递状态） =====
+
+    def 设置额外信息(self, key: str, value):
+        """设置额外信息（不污染 data）"""
+        self._额外信息[key] = value
+
+    def 获取额外信息(self, key: str, default=None):
+        """获取额外信息"""
+        return self._额外信息.get(key, default)
+
+    # ===== 便捷修改 =====
+
+    def 设置data(self, key: str, value):
+        """在 data 顶层设置字段"""
+        self._原始数据[key] = value
+
+    def 覆盖data(self, 新data: dict):
+        """用新 data 完全覆盖原来的 data"""
+        self._原始数据.clear()
+        self._原始数据.update(新data)
+
+    def 设置消息(self, 消息):
+        """修改 message"""
+        self.参数['message'] = 消息
+
+    def 设置群号(self, 群号: str | int):
+        """修改 group_id"""
+        self.参数['group_id'] = str(群号)
+
+    def 设置QQ号(self, qq: str | int):
+        """修改 user_id"""
+        self.参数['user_id'] = str(qq)
+
+    def __repr__(self):
+        状态 = "已停止" if self._已停止 else ("已发送" if self._已发送 else "进行中")
+        return f"<发送事件 动作={self.动作} 群号={self.群号} QQ={self.QQ号} [{状态}]>"
+
+
+class __消息发送钩子:
+    """消息发送钩子系统
+
+    两种钩子：
+    1. 发送前 — 发送前执行，可修改 data、阻止发送
+    2. 发送后 — 发送后执行，可读取发送结果、做后续处理
+
+    钩子签名：async def xxx(事件: 发送事件, context) -> None
+    - 事件：发送事件对象，包含 data、参数、群号等
+    - context：上下文对象（通常是 NapCatSend 实例）
+
+    用法：
+        钩子 = 消息钩子系统()
+        钩子.设置context类型(NapCatSend)  # 可选，提供类型提示
+
+        @钩子.发送前
+        async def 我的钩子(事件: 发送事件, context):
+            # 通过 context 访问 NapCatSend 实例
+            await context.贴表情(事件.结果)
+
+            # 修改数据
+            事件.设置消息("新内容")
+
+            # 阻止发送
+            事件.停止("原因：xxx")
+
+        @钩子.发送后
+        async def 发送后处理(事件: 发送事件, context):
+            print(事件.结果)  # 发送结果
+            await context.贴表情(事件.结果)
+    """
+
+    def __init__(self):
+        self._发送前钩子: list[tuple[int, Callable]] = []
+        self._发送后钩子: list[tuple[int, Callable]] = []
+
+    def 发送前(self, func=None, *, 优先级: int = 100):
+        """装饰器：注册发送前钩子
+
+        Args:
+            func: 钩子函数，签名 async def(事件: 发送事件, context) -> None
+            优先级: 执行优先级，数字越小越先执行（默认100）
+        """
+        return self._注册钩子(self._发送前钩子, func, 优先级, "发送前")
+
+    def 发送后(self, func=None, *, 优先级: int = 100):
+        """装饰器：注册发送后钩子
+
+        Args:
+            func: 钩子函数，签名 async def(事件: 发送事件, context) -> None
+            优先级: 执行优先级，数字越小越先执行（默认100）
+        """
+        return self._注册钩子(self._发送后钩子, func, 优先级, "发送后")
+
+    @staticmethod
+    def _注册钩子(列表, func, 优先级, 类型):
+        """内部方法：注册钩子到指定列表"""
+
+        def 装饰器(f):
+            @functools.wraps(f)
+            async def 包装(*args, **kwargs):
+                return await f(*args, **kwargs)
+
+            包装._钩子优先级 = 优先级
+            包装._钩子名称 = f.__name__
+
+            列表.append((优先级, 包装))
+            列表.sort(key=lambda x: x[0])
+
+            logger.info(f"已注册{类型}钩子: {f.__name__} (优先级={优先级})")
+            return 包装
+
+        if func is not None:
+            return 装饰器(func)
+        return 装饰器
+
+    async def 执行发送前(self, 事件: 发送事件, context=None):
+        """执行所有发送前钩子
+        Args:
+            事件: 发送事件对象
+            context: 上下文对象（通常是 NapCatSend 实例）
+        """
+        if not self._发送前钩子:
+            return
+        logger.debug(f"执行发送前钩子，共 {len(self._发送前钩子)} 个 | {事件}")
+        for 优先级, 钩子 in self._发送前钩子:
+            if 事件.已停止:
+                logger.debug("钩子已停止，跳过剩余发送前钩子")
+                break
+            名称 = getattr(钩子, '_钩子名称', '未知')
+            try:
+                await 钩子(事件, context)
+                logger.debug(f"发送前钩子 [{名称}] 执行完成")
+            except Exception as e:
+                logger.error(f"发送前钩子 [{名称}] 执行失败: {e}", exc_info=True)
+
+    async def 执行发送后(self, 事件: 发送事件, context=None):
+        """执行所有发送后钩子
+        Args:
+            事件: 发送事件对象（事件.结果 可获取发送结果）
+            context: 上下文对象（通常是 NapCatSend 实例）
+        """
+        if not self._发送后钩子:
+            return
+        logger.debug(f"执行发送后钩子，共 {len(self._发送后钩子)} 个 | {事件}")
+        for 优先级, 钩子 in self._发送后钩子:
+            名称 = getattr(钩子, '_钩子名称', '未知')
+            try:
+                await 钩子(事件, context)
+                logger.debug(f"发送后钩子 [{名称}] 执行完成")
+            except Exception as e:
+                logger.error(f"发送后钩子 [{名称}] 执行失败: {e}", exc_info=True)
+
+    def 列出所有(self) -> dict[str, list[str]]:
+        """列出所有已注册的钩子"""
+        return {
+            "发送前": [
+                f"[{优先级}] {getattr(钩子, '_钩子名称', '未知')}"
+                for 优先级, 钩子 in self._发送前钩子
+            ],
+            "发送后": [
+                f"[{优先级}] {getattr(钩子, '_钩子名称', '未知')}"
+                for 优先级, 钩子 in self._发送后钩子
+            ],
+        }
+
+
+# 全局钩子实例
+消息钩子 = __消息发送钩子()
 
 
 class NapCatSend:
     """所有NapCat统一请求模块"""
 
-    def __init__(self, config:AstrBotConfig):
+    def __init__(self, config: AstrBotConfig):
         self.config = config
         self.event:AiocqhttpMessageEvent|None = None
         连接配置: dict = config['连接配置']
@@ -27,74 +287,13 @@ class NapCatSend:
             self.NapCat_api_url: str = ""
             self.NapCat_api_token: str = ""
             self.http会话 = None
-        # ========== emoji配置 ==========
-        emoji配置: dict = config['emoji配置']
-        self.回复消息贴表情: bool = emoji配置['回复消息贴表情']
-        贴表情列表: str = emoji配置['贴表情列表'].strip()  # 字符串类型，逗号分隔
-        if not 贴表情列表:
-            config['emoji配置']['贴表情列表'] = config.schema['emoji配置']['items']['贴表情列表']['default']
-            logger.warning("贴表情列表为空，已恢复默认")
-            贴表情列表: str = emoji配置['贴表情列表'].strip()
-        try:
-            清理后 = ''.join(贴表情列表.split()).replace('，', ',')
-            parts = [i for i in 清理后.split(',') if i]
-            self.贴表情列表: tuple = tuple(map(int, parts))
-            规范后 = '，'.join(map(str, self.贴表情列表))
-            if emoji配置['贴表情列表'] != 规范后:
-                config['emoji配置']['贴表情列表'] = 规范后
-                config.save_config()
-        except Exception as e:
-            贴表情列表 = config.schema['emoji配置']['items']['贴表情列表']['default']
-            清理后 = ''.join(贴表情列表.split()).replace('，', ',')
-            parts = [i for i in 清理后.split(',') if i]
-            self.贴表情列表: tuple = tuple(map(int, parts))
-            logger.error(
-                f"解析 emoji ID 配置失败，已自动使用默认ID列表：{'，'.join(map(str, self.贴表情列表))}\n{e}",
-                exc_info=True)
-
-        # ========== 脱敏配置 ==========
-        脱敏配置: dict = config['脱敏配置']
-        self.敏感字符列表: list[str] = 脱敏配置['敏感字符列表']
-        self.替换目标: str = 脱敏配置['替换目标']
-        自动添加密钥: bool = 脱敏配置['自动添加密钥']
-        self.Hermes配置文件路径 = 脱敏配置['Hermes配置文件路径'].strip().strip('"\'')
-
-        if 自动添加密钥:
-            self._加载api密钥()
-            self._加载Hermes配置()
-            self.config['脱敏配置']['敏感字符列表'] = [str(i).strip() for i in self.敏感字符列表 if str(i).strip()]
-            self.敏感字符列表 = self.config['脱敏配置']['敏感字符列表']
-        self.自动艾特用户 = config['授权配置']['自动艾特用户'].strip()
-
-        try:
-            self.自动艾特用户 = int(self.自动艾特用户) if self.自动艾特用户 else 0
-        except (TypeError, ValueError):
-            logger.error("自动艾特用户请填写整数qq号")
-            self.自动艾特用户 = False
-        self.触发艾特关键词:list = config['授权配置']['触发艾特关键词']
-        if not self.触发艾特关键词:
-            config['授权配置']['触发艾特关键词'] = self.触发艾特关键词 = config.schema['授权配置']['items']['触发艾特关键词']['default']
-
-        if "*" in self.触发艾特关键词:
-            self.触发艾特关键词 = ["*"] # 先设置好，避免无意义遍历判断
-
-        self.开启快速授权 = config['授权配置']['开启快速授权']
-        if self.开启快速授权:
-            self.触发授权关键词 = config['授权配置']['触发授权关键词']
-            if not self.触发授权关键词:
-                config['授权配置']['触发授权关键词'] = self.触发授权关键词 = config.schema['授权配置']['items']['触发授权关键词']['default']
-        else:
-            self.触发授权关键词 = []
-        self.触发授权关键词 = [ i.lower() for i in self.触发授权关键词 ]
-        self.触发艾特关键词 = [ i.lower() for i in self.触发艾特关键词 ]
-        logger.info(f"自动艾特用户：{self.自动艾特用户}")
-        logger.info(f"触发关键词：{self.触发艾特关键词}")
+        # emoji/脱敏/艾特/授权配置已移至 处理器 类
 
     def set_event(self, event:AiocqhttpMessageEvent) -> None:
         """设置event"""
         self.event = event
 
-    async def 贴表情(self, mid: str|int|dict) -> dict:
+    async def 贴表情(self, mid: str|int|dict, 表情ID: int) -> dict:
         """给消息贴表情回应"""
         原mid = mid
         if isinstance(mid, dict):
@@ -110,7 +309,7 @@ class NapCatSend:
         动作 = "set_msg_emoji_like"
         参数 = {
             "message_id": str(mid),
-            "emoji_id": random.choice(self.贴表情列表),
+            "emoji_id": 表情ID,
             "set": True
         }
         结果 = await self.发送动作参数到NapCat(动作, 参数)
@@ -163,82 +362,28 @@ class NapCatSend:
 
     async def 发送data消息到NapCat(self, data:dict) -> dict:
         """所有发送消息到NapCat统一接口"""
-        data['params'] = self.数据文本脱敏(data.get('params', {}))
-        action = data.get('action')
-        params = data.get('params')
-        群号 = params.get('group_id')
-        qq = params.get('user_id')
-        需要艾特, 需要授权 = self.包含关键词(params, action)
-        logger.debug(f"需要艾特，需要授权：{需要艾特}， {需要授权}")
-        if 需要艾特:
-            data['params'] = self.自动艾特(params)
+        事件 = 发送事件(data)
+
+        # 发送前钩子
+        await 消息钩子.执行发送前(事件, context=self)
+        if 事件.已停止:
+            return {"status": "intercepted", "retcode": -1, "data": None, "msg": 事件.停止原因}
+        
+        # 实际发送
         if self.消息发送方式 == "框架已有的WebSocket":
-            结果 = await self._通过框架发送消息到NapCat(data)
+            结果 = await self._通过框架发送消息到NapCat(事件.data)
         elif self.消息发送方式 == "NapCat Http 服务器":
-            结果 = await self._通过HTTP发送消息到NapCat(data)
+            结果 = await self._通过HTTP发送消息到NapCat(事件.data)
         else:
-            logger.critical(f"意外未知的消息发送方式：{self.消息发送方式}\n原数据：{str(data)}")
-            结果 = await self._通过框架发送消息到NapCat(data)
-        if 需要授权:
-            MessageId.add_sq(结果, 群号 or qq)
-        return 结果
-
-    def _加载api密钥(self):
-        """从 AstrBot cmd_config.json 自动加载 API 密钥到敏感字符列表"""
-        try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            data_dir = os.path.dirname(os.path.dirname(script_dir))
-            cmd_config_path = os.path.join(data_dir, 'cmd_config.json')
-            with open(cmd_config_path, 'r', encoding='utf-8-sig') as f:
-                cmd_config = json.load(f)
-            for source in cmd_config.get('provider_sources', []):
-                keys = source.get('key', [])
-                if isinstance(keys, str):
-                    keys = [keys]
-                self.敏感字符列表.extend(keys)
-            self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
-            self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-            logger.info(f"已从配置文件自动加载 {len(self.敏感字符列表)} 个密钥字符")
-        except Exception as e:
-            logger.warning(f"自动读取 AstrBot 密钥失败: {e}")
-
-    def _加载Hermes配置(self):
-        """读取 Hermes config.yaml，提取所有 api_key 并加入敏感字符列表"""
-
-        def _递归提取api_key(data):
-            """递归提取数据中所有的 api_key 字段值"""
-            keys = []
-            if isinstance(data, dict):
-                for k, v in data.items():
-                    if k == "api_key":
-                        keys.append(v)
-                    keys.extend(_递归提取api_key(v))
-            elif isinstance(data, list):
-                for item in data:
-                    keys.extend(_递归提取api_key(item))
-            return keys
-
-        try:
-            if not os.path.exists(self.Hermes配置文件路径):
-                logger.warning(f"Hermes 配置文件不存在: {self.Hermes配置文件路径}")
-                return
-            with open(self.Hermes配置文件路径, 'r', encoding='utf-8') as f:
-                config_data = yaml.safe_load(f)
-            if config_data is None:
-                return
-            hermes_keys = _递归提取api_key(config_data)
-            if hermes_keys:
-                # 合并到敏感字符列表并去重
-                self.敏感字符列表.extend(hermes_keys)
-                self.敏感字符列表 = list(dict.fromkeys(self.敏感字符列表))
-                self.config['脱敏配置']['敏感字符列表'] = self.敏感字符列表
-                logger.info(f"从 Hermes 配置中提取到 {len(hermes_keys)} 个 API Key，已加入敏感字符列表")
-            else:
-                logger.info("Hermes 配置中未找到任何 api_key 字段")
-        except yaml.YAMLError as e:
-            logger.error(f"解析 YAML 失败: {e}")
-        except Exception as e:
-            logger.error(f"读取 Hermes 配置失败: {e}")
+            logger.critical(f"意外未知的消息发送方式：{self.消息发送方式}\n原数据：{str(事件.data)}")
+            结果 = await self._通过框架发送消息到NapCat(事件.data)
+        
+        # 发送后钩子
+        事件.设置结果(结果)
+        await 消息钩子.执行发送后(事件, context=self)
+        
+        return 事件.结果
+    
 
     async def _通过框架发送消息到NapCat(self, data:dict) -> dict:
         """<说明>"""
@@ -255,8 +400,6 @@ class NapCatSend:
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 返回
             MessageId.add(结果)
-            if self.回复消息贴表情:
-                await self.贴表情(结果)
             Status.NapCat发送成功 += 1
         except ActionFailed as e:
             Status.NapCat发送失败 += 1
@@ -289,8 +432,6 @@ class NapCatSend:
             if action in ("set_msg_emoji_like", "send_poke"):
                 return 结果
             MessageId.add(结果)
-            if self.回复消息贴表情:
-                await self.贴表情(结果)
             Status.NapCat发送成功 += 1
             return 结果
 
@@ -298,102 +439,3 @@ class NapCatSend:
             Status.NapCat发送失败 += 1
             logger.error(f"API 调用失败\n原数据：{data}\n错误信息：{e}", exc_info=True)
             return {"echo": echo, "status": "failed", "retcode": 100, "msg": str(e), "data": None}
-
-    def 自动艾特(self, params: dict) -> dict:
-        """将数据增加自动艾特"""
-        if 'message' not in params:
-            return params
-        消息组 = params['message']
-
-        # 构造艾特消息段
-        艾特段 = {"type": "at", "data": {"qq": self.自动艾特用户}}
-
-        # 修改 message
-        if isinstance(消息组, str):
-            # str 可能包含 CQ 码，保持 str 格式用 CQ 码艾特，避免 CQ 码丢失解析
-            params['message'] = f"[CQ:at,qq={self.自动艾特用户}]{消息组}"
-        else:  # list
-            params['message'] = [艾特段] + 消息组
-
-        # 同步更新 raw_message（添加CQ码格式的艾特）
-        raw_message = params.get('raw_message')
-        if raw_message is not None:
-            at_cq = f"[CQ:at,qq={self.自动艾特用户}]"
-            params['raw_message'] = at_cq + raw_message
-
-        logger.debug(f"自动艾特：在消息中添加@用户{self.自动艾特用户}")
-
-        return params
-
-    def 包含关键词(self, params, action) -> tuple[bool, bool]:
-        # 检查消息中是否包含艾特或授权触发关键词
-        if action not in ("send_group_msg", "send_msg"):
-            return False, False
-        if 'message' not in params:
-            return False, False
-        消息组 = params['message']
-        群号 = params.get('group_id')
-        自动艾特 = True
-        开启授权 = self.开启快速授权
-        if (not self.自动艾特用户) or (not 群号):
-            自动艾特 = False
-        if not (自动艾特 or 开启授权):
-            return False, False
-        需要艾特 = False
-        需要授权 = False
-        if self.触发艾特关键词[0] == "*":
-            需要艾特 = True
-        if isinstance(消息组, str):
-            消息组 = 消息组.lower()
-            if 自动艾特 and (not 需要艾特) and any( i in 消息组 for i in self.触发艾特关键词 ):
-                需要艾特 = True
-            if 开启授权 and any(i in 消息组 for i in self.触发授权关键词):
-                需要授权 = True
-        elif isinstance(消息组, list):
-            for 组件 in 消息组:
-                if 组件.get('type') == 'text':
-                    text = 组件.get('data', {}).get('text', '').lower()
-                    if 自动艾特 and (not 需要艾特) and any( i in text for i in self.触发艾特关键词 ):
-                        需要艾特 = True
-                    if 开启授权 and (not 需要授权) and any(i in text for i in self.触发授权关键词):
-                        需要授权 = True
-        return 需要艾特, 需要授权
-
-    def 数据文本脱敏(self, params:dict) -> dict:
-        """对data中的文本进行脱敏，替换敏感字符"""
-        if not self.敏感字符列表:
-            return params
-
-        message = params.get('message')
-        if message is None:
-            return params
-
-        替换前 = str(message)
-
-        if isinstance(message, str):
-            for 敏感词 in self.敏感字符列表:
-                if 敏感词 in message:
-                    message = message.replace(敏感词, self.替换目标)
-                    Status.脱敏替换次数 += 1
-                    logger.debug(f"脱敏：替换字符串中的敏感字符")
-            params['message'] = message
-
-        elif isinstance(message, list):
-            for segment in message:
-                if segment.get('type') == 'text':
-                    text = segment.get('data', {}).get('text', '')
-                    for 敏感词 in self.敏感字符列表:
-                        if 敏感词 in text:
-                            text = text.replace(敏感词, self.替换目标)
-                            Status.脱敏替换次数 += 1
-                    segment['data']['text'] = text
-
-        # 同步更新 raw_message
-        if 替换前 != str(message):
-            params['raw_message'] = params.get('raw_message', 替换前)
-            for 敏感词 in self.敏感字符列表:
-                if 敏感词 in params['raw_message']:
-                    params['raw_message'] = params['raw_message'].replace(敏感词, self.替换目标)
-            logger.warning(f"脱敏：已过滤消息中的敏感字符")
-
-        return params

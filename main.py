@@ -1,7 +1,4 @@
-import subprocess
 import sys, asyncio
-import threading
-
 from astrbot.api.event import filter
 from astrbot.api.provider import LLMResponse
 from astrbot.api.all import Star, Context, AstrBotConfig
@@ -9,6 +6,7 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import Aioc
 from .Tools import *
 from .logger import logger
 from .napcat_send import NapCatSend
+from .消息发送处理器 import 消息发送处理器
 from .message_id import MessageId
 from .ws_client import WsClient
 from .status import Status
@@ -128,11 +126,14 @@ class Hermes适配器(Star):
 
         self.转发时贴表情: bool = config['emoji配置']['转发时贴表情']
         self.过滤llm结果: bool = config['脱敏配置']['过滤llm结果']
-        self.替换目标: str = config['脱敏配置']['替换目标']
-        自动添加token = config['脱敏配置']['自动添加token']
 
+        # 初始化处理器（配置 + 钩子一体化）
+        self.处理器 = 消息发送处理器(config)
+
+        # 补充连接相关 token 到敏感字符列表
+        自动添加token = config['脱敏配置']['自动添加token']
         if 自动添加token:
-            config['脱敏配置']['敏感字符列表'].extend([
+            self.处理器.敏感字符列表.extend([
                 连接配置['hermes_token'], 连接配置['NapCat_api_token'], 连接配置['反向HTTP令牌'],
                 config['指令配置']['http指令服务器token']
             ])
@@ -165,11 +166,8 @@ class Hermes适配器(Star):
         if config['脱敏配置']['自动保存']:
             config.save_config()
 
-        self.敏感字符列表: list[str] = config['脱敏配置']['敏感字符列表']
-
         self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
         self.ws.机器人qq = config['其他配置']['机器人qq']
-        self.开启快速授权 = config['授权配置']['开启快速授权']
         self.启用Hermes连接报告 = config['其他配置']['启用Hermes连接报告']
         if self.启用Hermes连接报告:
             self.ws.开启连接报告 = True
@@ -194,8 +192,10 @@ class Hermes适配器(Star):
         self_id = str(raw.get('self_id', ""))
         if qq == self_id:
             return
-        if self.开启快速授权:
+        if self.处理器.开启快速授权:
             if raw.get('sub_type') == 'poke':
+                if str(raw.get("target_id")) != self_id:
+                    return
                 if 群号:
                     if MessageId.has_sq(群号) and all判断(self.允许的群组, 群号) and all判断(self.允许的用户, qq) and all判断(self.允许approve的用户, qq):
                         data = 构造文本NapCat事件体(
@@ -259,7 +259,6 @@ class Hermes适配器(Star):
         if not (text:=event.get_message_str()):
             return
 
-
         群号 = str(raw.get('group_id', ""))
         if 群号:
             self.群事件[群号] = event
@@ -283,7 +282,7 @@ class Hermes适配器(Star):
             await self.ws.发送ws消息(data)
             if self.转发时贴表情:
                 if 群号:
-                    await self.NapCatSend.贴表情(data)
+                    await self.NapCatSend.贴表情(data, self.处理器.随机表情())
                 else:
                     await self.NapCatSend.戳一戳(raw.get('user_id'))
             logger.info(f"已转发 [{用户名(raw)}] [{来源}] 消息到 Hermes：{event.message_obj.raw_message.get('raw_message')}")
@@ -300,7 +299,7 @@ class Hermes适配器(Star):
             await self.ws.发送ws消息(data)
             if self.转发时贴表情:
                 if 群号:
-                    await self.NapCatSend.贴表情(data)
+                    await self.NapCatSend.贴表情(data, self.处理器.随机表情())
                 else:
                     await self.NapCatSend.戳一戳(raw.get('user_id'))
             logger.info("已跟随框架唤醒")
@@ -312,9 +311,10 @@ class Hermes适配器(Star):
     async def llm请求后(self, _, resp: LLMResponse):
         """llm请求后过滤敏感字符"""
         if self.过滤llm结果:
+            处理器 = self.处理器
             llm文本 = resp.completion_text
-            for 敏感词 in self.敏感字符列表:
-                llm文本 = llm文本.replace(敏感词, self.替换目标)
+            for 敏感词 in 处理器.敏感字符列表:
+                llm文本 = llm文本.replace(敏感词, 处理器.替换目标)
             resp.completion_text = llm文本
 
     @filter.llm_tool("hermes_agent")
@@ -482,36 +482,34 @@ class Hermes适配器(Star):
         yield _.plain_result(状态信息)
 
     @filter.command("重启爱马仕", alias={"重启Hermes"})
-    async def Hermes重启指令(self, event: AiocqhttpMessageEvent):
-        """执行Hermes重启命令"""
-        yield event.plain_result("🔄 正在重启Hermes…")
+    async def Hermes重启指令(self, event):
+        # 立即发送“正在重启”的回复
+        await event.send(event.plain_result("🔄 正在重启Hermes…"))
         self.ws.设置重启状态(event)
 
-        # 获取要执行的重启命令（假设 self.重启命令 是字符串或列表）
-        重启命令 = self.重启命令
-
-        def run_command():
-            """在子线程中执行重启命令"""
+        # 定义后台执行重启命令的异步函数
+        async def _execute_restart():
             try:
-                result = subprocess.run(
-                    重启命令,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=30
+                proc = await asyncio.create_subprocess_shell(
+                    self.重启命令,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
                 )
-                if result.returncode == 0:
-                    logger.info(f"重启爱马仕命令执行成功: {重启命令}\n输出: {result.stdout}")
+                stdout, stderr = await proc.communicate()
+                if proc.returncode == 0:
+                    logger.info(f"重启成功: {stdout.decode()}")
                 else:
-                    logger.error(f"重启命令失败，返回码 {result.returncode}\n错误: {result.stderr}")
-            except subprocess.TimeoutExpired:
-                logger.error(f"重启命令超时 (30秒): {重启命令}")
+                    logger.error(f"重启失败: {stderr.decode()}")
+                    await event.send(event.plain_result("❌ 重启命令执行失败，请查看控制台"))
+            except asyncio.TimeoutError:
+                logger.error("重启命令执行超时")
+                await event.send(event.plain_result("⚠️ 重启命令执行超时"))
             except Exception as e:
-                logger.error(f"执行重启命令时发生异常: {e}")
+                logger.error(e)
+                await event.send(event.plain_result(f"❌ 执行异常: {e}"))
 
-        # 使用 threading.Thread 启动子线程
-        thread = threading.Thread(target=run_command, daemon=True)
-        thread.start()
+        # 创建后台任务，当前协程立即返回，不等待重启完成
+        asyncio.create_task(_execute_restart())
 
     # ========== qq消息过滤 ==========（在此模块即可，不用过度模块化）
 
