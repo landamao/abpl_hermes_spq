@@ -409,11 +409,11 @@ hermes gateway restart
 如果你还没有安装 Hermes，请先访问 **[Hermes Agent 官方仓库](https://github.com/NousResearch/hermes-agent)**，按照其中的说明进行安装并配置AI。
 
 ### 第二步：安装 Hermes QQ OneBot 适配器
-Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)** 进行桥接。
+Hermes 本身不直接支持 QQ 协议，需要通过 **[Hermes QQ OneBot 平台适配器](https://github.com/landamao/hermes-qq-onebot)** 进行桥接。
 
 1. 克隆或下载该适配器仓库：
    ```bash
-   git clone https://github.com/chrysoljq/hermes_qq_onebot.git
+   git clone https://github.com/landamao/hermes-qq-onebot.git
    cd hermes_qq_onebot
    ```
 2. 按照其 README 中的依赖安装说明，配置必要的 Python 环境。
@@ -522,7 +522,7 @@ hermes gateway restart   # 或根据其文档使用特定命令
 ## 🔗 相关链接
 
 - [Hermes Agent](https://github.com/NousResearch/hermes-agent)  
-- [Hermes QQ OneBot 平台适配器](https://github.com/chrysoljq/hermes_qq_onebot)
+- [Hermes QQ OneBot 平台适配器](https://github.com/landamao/hermes-qq-onebot)
 - [插件 GitHub 仓库](https://github.com/landamao/abpl_hermes_spq)
 
 *作者：懒大猫*
