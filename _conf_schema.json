@@ -1,0 +1,449 @@
+{
+    "连接配置": {
+        "description": "连接配置",
+        "type": "object",
+        "hint": "Hermes Agent 和 NapCat 的连接设置",
+        "items": {
+            "hermes_ws_url": {
+                "type": "string",
+                "description": "Hermes WebSocket 地址",
+                "default": "ws://127.0.0.1:6701",
+                "hint": "Hermes Agent 的 WebSocket 服务器地址，插件会主动连接它"
+            },
+            "hermes_token": {
+                "type": "string",
+                "description": "Hermes WebSocket token",
+                "default": "",
+                "hint": "连接 Hermes 时的认证令牌，留空表示无需认证"
+            },
+            "消息发送方式": {
+                "description": "消息发送方式",
+                "type": "string",
+                "options": [
+                    "框架已有的WebSocket",
+                    "NapCat Http 服务器"
+                ],
+                "default": "框架已有的WebSocket",
+                "hint": "插件发送消息到qq使用的方式，使用框架已有的WebSocket，不需要配置Http服务器，如有bug请使用NapCat Http 服务器方式"
+            },
+            "NapCat_api_url": {
+                "type": "string",
+                "description": "NapCat HTTP API 地址",
+                "default": "http://127.0.0.1:5700",
+                "condition": {
+                    "消息发送方式": "NapCat Http 服务器"
+                }
+            },
+            "NapCat_api_token": {
+                "type": "string",
+                "description": "NapCat HTTP API token",
+                "default": "",
+                "condition": {
+                    "消息发送方式": "NapCat Http 服务器"
+                }
+            },
+            "开启反向HTTP": {
+                "type": "bool",
+                "description": "反向HTTP服务器",
+                "default": false,
+                "hint": "是否开启反向HTTP服务器，开启后将框架已有的WebSocket代理NapCat 的HTTP服务器，可发挥插件敏感字符过滤的功能",
+                "condition": {
+                    "消息发送方式": "框架已有的WebSocket"
+                }
+            },
+            "反向HTTP地址": {
+                "type": "string",
+                "description": "反向HTTP服务器的地址",
+                "default": "http://127.0.0.1",
+                "condition": {
+                    "开启反向HTTP": true,
+                    "消息发送方式": "框架已有的WebSocket"
+                }
+            },
+            "反向HTTP令牌": {
+                "type": "string",
+                "description": "反向HTTP令牌",
+                "default": "",
+                "condition": {
+                    "开启反向HTTP": true,
+                    "消息发送方式": "框架已有的WebSocket"
+                }
+            },
+            "反向HTTP端口": {
+                "type": "int",
+                "description": "反向HTTP服务器监听端口",
+                "default": 5701,
+                "hint": "本插件启动的HTTP服务器端口，Hermes应将消息发送到此端口",
+                "condition": {
+                    "开启反向HTTP": true,
+                    "消息发送方式": "框架已有的WebSocket"
+                }
+            }
+        }
+    },
+    "过滤配置": {
+        "description": "消息过滤",
+        "type": "object",
+        "hint": "控制哪些消息会被转发给 Hermes，过滤顺序从上到下",
+        "items": {
+            "允许的群组": {
+                "type": "list",
+                "description": "允许的群组",
+                "default": [],
+                "hint": "填写群号，all代表所有，以/开头代表禁用，会优先检测禁用的ID"
+            },
+            "允许的用户": {
+                "type": "list",
+                "description": "允许的用户",
+                "default": ["admin"],
+                "hint": "填写qq号，all代表所有，admin代表框架管理员，以/开头代表禁用，会优先检测禁用的ID，不支持/all，/admin"
+            },
+            "私聊允许的用户": {
+                "type": "list",
+                "description": "私聊允许的用户",
+                "default": ["admin"],
+                "hint": "填写qq号，私聊时允许唤醒Hermes的用户，all代表所有，admin代表框架管理员，以/开头代表禁用，会优先检测禁用的ID，不支持/all，/admin"
+            },
+            "跟随框架唤醒": {
+                "type": "bool",
+                "description": "跟随框架唤醒",
+                "default": false,
+                "hint": "将框架唤醒的消息全部转发给Hermes并拦截框架的消息，仍需通过上面的检测"
+            },
+            "私聊转发所有消息": {
+                "type": "bool",
+                "description": "私聊转发所有消息",
+                "default": false,
+                "hint": "私聊时是否转发所有消息给 Hermes，但仍需通过上面的检测",
+                "condition": {
+                    "跟随框架唤醒": false
+                }
+            },
+            "引用唤醒": {
+                "type": "bool",
+                "description": "引用Hermes消息直接唤醒",
+                "default": true,
+                "hint": "引用Hermes发送的消息时，是否直接唤醒Hermes回复",
+                "condition": {
+                    "跟随框架唤醒": false
+                }
+            },
+            "艾特机器人触发": {
+                "type": "bool",
+                "description": "艾特机器人触发",
+                "default": false,
+                "hint": "是否在艾特机器人时转发消息给 Hermes",
+                "condition": {
+                    "跟随框架唤醒": false
+                }
+            },
+            "触发关键词": {
+                "type": "list",
+                "description": "触发关键词",
+                "default": [],
+                "hint": "消息中包含这些关键词时会转发给 Hermes，参数：默认包含触发，-d可自动去除该关键词，-s表示以该关键词开头触发，-e表示以该关键词结尾触发，注意两个参数是-s-d不能-sd，不能-s和-e一起，唤醒时不需要加参数",
+                "condition": {
+                    "跟随框架唤醒": false
+                }
+            },
+            "同时唤醒处理方式": {
+                "type": "string",
+                "description": "同时唤醒处理方式",
+                "default": "只用Hermes",
+                "options": [
+                    "只用Hermes",
+                    "不使用Hermes",
+                    "都处理"
+                ],
+                "hint": "只用Hermes：拦截消息并转发给Hermes；  不使用Hermes：即使触发了转发给Hermes也不转发；  都处理：不拦截框架的唤醒，并转发给Hermes",
+                "condition": {
+                    "跟随框架唤醒": false
+                }
+            },
+            "跳过指令": {
+                "type": "bool",
+                "description": "自动跳过框架指令",
+                "default": true,
+                "hint": "自动跳过框架的指令，如/ls，/llm等将不会被转发"
+            }
+        }
+    },
+    "授权配置": {
+        "description": "授权配置",
+        "type": "object",
+        "hint": "配置 /approve 和 /deny 及其他命令的权限，需通过过滤配置才能使用指令",
+        "items": {
+            "允许approve的用户": {
+                "type": "list",
+                "description": "允许 /approve 的用户",
+                "default": ["admin"],
+                "hint": "填写qq号，all代表所有，admin代表框架管理员"
+            },
+            "允许deny的用户": {
+                "type": "list",
+                "description": "允许 /deny 的用户",
+                "default": ["admin"],
+                "hint": "填写qq号，all代表所有，admin代表框架管理员"
+            },
+            "无权限处理方式": {
+                "type": "string",
+                "description": "无/approve权限处理方式",
+                "options": ["自动发送/deny拒绝命令", "发送自定义拒绝信息给Hermes", "不处理"],
+                "default": "发送自定义拒绝信息给Hermes"
+            },
+            "自定义拒绝信息": {
+                "type": "text",
+                "description": "自定义拒绝信息",
+                "hint": "发送自定义拒绝信息给Hermes的文本",
+                "default": "❌ 该用户非机器管理员，危险命令被自动拒绝，禁止使用其他方式绕过",
+                "condition": {
+                    "无权限处理方式": "发送自定义拒绝信息给Hermes"
+                }
+            },
+            "approve无权限提示": {
+                "type": "text",
+                "description": "/approve无权限提示",
+                "default": "",
+                "hint": "用户无权限使用/approve时发送到qq的提示消息，留空表示不发送"
+            },
+            "允许其他指令的用户": {
+                "type": "list",
+                "description": "允许其他指令的用户",
+                "default": ["admin"],
+                "hint": "允许使用其他以`/`开头的指令的用户，填写qq号，all代表所有，admin代表框架管理员"
+            },
+            "开启中文映射": {
+                "type": "bool",
+                "description": "开启授权命令中文映射",
+                "default": true,
+                "hint": "开启后，可以更方便的使用中文授权，也同时兼容英文授权方式，映射规则：/同意 → /approve；/一直同意 → /approve always；/会话同意 → /approve session；/拒绝 → /deny"
+            },
+            "自定义指令前缀": {
+                "type": "string",
+                "description": "自定义指令前缀",
+                "default": "/",
+                "hint": "留空代表使用默认`/`，自定义Hermes的指令前缀，可避免与框架冲突"
+            },
+            "自动艾特用户": {
+                "type": "string",
+                "description": "授权自动艾特",
+                "default": "",
+                "hint": "群聊自动艾特，留空代表不艾特，仅支持填一个qq"
+            },
+            "触发艾特关键词": {
+                "type": "list",
+                "description": "触发艾特关键词",
+                "default": [
+                    "Dangerous command requires approval",
+                    "reply `/approve`",
+                    "需要审批的危险命令",
+                    "⏳",
+                    "⚠️",
+                    "❌"
+                ],
+                "hint": "当消息中有这些关键词触发自动艾特，不区分大小写，清空恢复默认，填“*”代表所有消息"
+            },
+            "开启快速授权": {
+                "type": "bool",
+                "description": "开启快速授权",
+                "default": true,
+                "hint": "开启后，可以更更方便的方式授权，戳一戳授权单次，贴表情授权会话"
+            },
+            "触发授权关键词": {
+                "type": "list",
+                "description": "触发授权关键词",
+                "default": [
+                    "reply `/approve`",
+                    "需要审批的危险命令"
+                ],
+                "hint": "当消息中有这些关键词时记录授权状态, 不区分大小写，清空恢复默认",
+                "condition": {
+                    "开启快速授权": true
+                }
+            }
+        }
+    },
+    "emoji配置": {
+        "description": "表情回应配置",
+        "type": "object",
+        "hint": "自动贴表情回应功能",
+        "items": {
+            "回复消息贴表情": {
+                "type": "bool",
+                "description": "Hermes回复消息贴表情",
+                "default": true,
+                "hint": "Hermes 发送回复消息后自动给回复贴表情，私聊戳一戳"
+            },
+            "转发时贴表情": {
+                "type": "bool",
+                "description": "转发消息时贴表情",
+                "default": true,
+                "hint": "用户消息触发唤醒并转发给 Hermes 时，给用户的原始消息贴表情"
+            },
+            "贴表情列表": {
+                "type": "text",
+                "description": "表情ID列表，用逗号分割每个表情，兼容中文逗号",
+                "default": "66，76，124，144，147，192，201，282，297",
+                "hint": "随机从这些表情ID中选一个贴上去"
+            },
+            "回复时发表情包": {
+                "type": "bool",
+                "description": "回复时概率发表情包",
+                "default": false,
+                "hint": "需要表情包小偷插件已启用，复用其概率和冷却设置"
+            }
+        }
+    },
+    "脱敏配置": {
+        "description": "敏感字符过滤",
+        "type": "object",
+        "hint": "Hermes 回复到 QQ 的消息中敏感字符的过滤替换",
+        "items": {
+            "敏感字符列表": {
+                "type": "list",
+                "description": "敏感字符列表",
+                "default": [],
+                "hint": "消息中包含这些字符时会被替换"
+            },
+            "替换目标": {
+                "type": "text",
+                "description": "替换内容",
+                "default": "***",
+                "hint": "敏感字符会被替换为此内容，留空表示直接删除"
+            },
+            "自动添加密钥": {
+                "type": "bool",
+                "description": "自动添加框架配置文件里的密钥",
+                "default": true,
+                "hint": "开启后，将自动读取`（框架目录）/data/cmd_config.json`里的密钥信息到敏感字符列表"
+            },
+            "自动添加token": {
+                "type": "bool",
+                "description": "自动添加上面连接配置中的token",
+                "default": true,
+                "hint": "如：Hermes WebSocket token、NapCat HTTP API token、反向HTTP令牌"
+            },
+            "Hermes配置文件路径": {
+                "type": "string",
+                "description": "Hermes配置文件路径",
+                "default": "/root/.hermes/config.yaml",
+                "hint": "填写Hermes配置文件路径的绝对路径，扫描里面的所有api_key字段",
+                "condition": {
+                    "自动添加密钥": true
+                }
+            },
+            "自动保存": {
+                "type": "bool",
+                "description": "自动保存到配置",
+                "default": false,
+                "hint": "开启后自动保存扫描到的密钥信息到配置文件，关闭后只保存在内存，若你保存过一次，关闭后不会自动删除"
+            },
+            "过滤llm结果": {
+                "type": "bool",
+                "description": "同时过滤框架llm的结果",
+                "default": true,
+                "hint": "同时监听框架llm请求后的文本，过滤敏感字符"
+            }
+        }
+    },
+    "指令配置": {
+        "description": "指令执行配置",
+        "type": "object",
+        "hint": "Hermes 通过 HTTP API 请求执行框架框架指令时的配置",
+        "items": {
+            "启用llm指令执行器": {
+                "type": "bool",
+                "description": "启用llm指令执行器",
+                "default": true,
+                "hint": "开启后llm也可以执行框架指令"
+            },
+            "启用指令HTTP服务器": {
+                "type": "bool",
+                "description": "启用指令执行HTTP服务器",
+                "default": true,
+                "hint": "开启后提供 HTTP API 供 Hermes 调用执行框架指令"
+            },
+            "指令HTTP服务器地址": {
+                "type": "string",
+                "description": "指令HTTP服务器监听地址",
+                "default": "127.0.0.1",
+                "hint": "主机地址，不包括端口"
+            },
+            "指令HTTP服务器端口": {
+                "type": "int",
+                "description": "指令HTTP服务器监听端口",
+                "default": 6700
+            },
+            "http指令服务器token": {
+                "type": "string",
+                "description": "HTTP指令服务器认证token",
+                "default": "",
+                "hint": "留空表示无需认证"
+            },
+            "指令白名单": {
+                "type": "list",
+                "description": "指令白名单",
+                "default": ["all"],
+                "hint": "all代表所有指令"
+            },
+            "指令黑名单": {
+                "type": "list",
+                "description": "指令黑名单",
+                "default": [],
+                "hint": "all代表所有指令，列表中的指令不允许执行"
+            }
+        }
+    },
+    "其他配置": {
+        "description": "其他配置",
+        "type": "object",
+        "items": {
+            "机器人qq": {
+                "type": "string",
+                "description": "机器人qq",
+                "default": "",
+                "hint": "机器人qq号，如果你连接了多个OneBot适配器，一定要配置机器人qq，否则可能消息错乱"
+            },
+            "info日志": {
+                "type": "bool",
+                "description": "使用info代替debug日志",
+                "default": false,
+                "hint": "使用info代替debug日志，方便调试"
+            },
+            "启用Hermes连接报告": {
+                "type": "bool",
+                "description": "启用Hermes连接报告",
+                "default": false,
+                "hint": "是否启用启用Hermes连接报告"
+            },
+            "发送目标类型": {
+                "type": "string",
+                "description": "发送目标类型",
+                "options": ["群聊", "私聊"],
+                "default": "群聊",
+                "hint": "连接报告发送目标类型，主动消息只支持cqhttp发送",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
+            },
+            "发送目标ID": {
+                "type": "string",
+                "description": "发送目标ID",
+                "default": "",
+                "hint": "连接报告发送的目标ID，留空则不发送，若使用重启指令重启，则发送到该聊天室",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
+            },
+            "重启Hermes命令": {
+                "type": "string",
+                "description": "重启Hermes命令",
+                "default": "systemctl restart hermes",
+                "hint": "使用指令`/重启爱马仕`时执行的重启Hermes命令",
+                "condition": {
+                    "启用Hermes连接报告": true
+                }
+            }
+        }
+    }
+}
