@@ -8,7 +8,6 @@
   - 事件 self_id 与配置不匹配时跳过处理，输出 debug 日志
 - **类名修正**：`aicqhttpevent.py` 文件重命名为 `aiocqhttpevent.py`，类名 `AiocqhttpMessageEvent` → `AiocqhttpEvent`
   - main.py 中对应 import 和 cast 逻辑同步更新
-- LLM 工具 `hermes_agent` 内部返回语句改为 `pass`（原 `return` 会导致提前退出）
 
 ### 📝 文档
 - 机器人qq配置 hint 补充多适配器场景说明
