@@ -3,10 +3,13 @@
 授权命令映射 = {
     "/同意": "/approve",
     "/允许": "/approve",
+    "/批准": "/approve",
     "/一直同意": "/approve always",
     "/一直允许": "/approve always",
+    "/一直批准": "/approve always",
     "/会话同意": "/approve session",
     "/会话允许": "/approve session",
+    "/会话批准": "/approve session",
     "/拒绝": "/deny",
     "/状态": "/status"
 }
