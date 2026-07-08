@@ -17,6 +17,10 @@ from .logger import logger
 from urllib.parse import urlparse
 from .napcat_send import NapCatSend
 
+def _is_loopback_host(host: str) -> bool:
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
 class 指令执行HTTP服务器:
     """指令执行 HTTP 服务器"""
 
@@ -29,6 +33,7 @@ class 指令执行HTTP服务器:
         self._start_time = time.time()
         self._execute_count = 0
         self._error_count = 0
+        self._allow_empty_token = False
 
     async def start(self, host: str, port: int):
         """启动 HTTP 服务器"""
@@ -40,11 +45,16 @@ class 指令执行HTTP服务器:
             app.router.add_get('/api/commands/for_hermes', self._handle_hermes_commands)
             app.router.add_get('/api/command/{command_name}', self._handle_command_detail)
             host = urlparse(host).hostname if '://' in host else host
+            if not self.config['指令配置']['http指令服务器token'] and not _is_loopback_host(host):
+                raise RuntimeError("HTTP 指令服务器监听非本机地址时不允许使用空 token")
+            self._allow_empty_token = not self.config['指令配置']['http指令服务器token']
             self._runner = web.AppRunner(app)
             await self._runner.setup()
             self._site = web.TCPSite(self._runner, host, port)
             await self._site.start()
             logger.info(f"指令执行 HTTP 服务器已启动: http://{host}:{port}")
+            if not self.config['指令配置']['http指令服务器token']:
+                logger.warning("HTTP 指令服务器正在使用空 token，仅建议在本机监听时使用")
         except Exception as e:
             logger.error(f"启动指令执行 HTTP 服务器失败: {e}", exc_info=True)
 
@@ -61,7 +71,7 @@ class 指令执行HTTP服务器:
     def _verify_auth(self, request: web.Request) -> bool:
         token = self.config['指令配置']['http指令服务器token']
         if not token:
-            return True
+            return self._allow_empty_token
         auth = request.headers.get('Authorization', '')
         if auth.startswith('Bearer '):
             return auth[7:] == token
