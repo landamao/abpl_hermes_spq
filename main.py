@@ -578,7 +578,11 @@ class Hermes适配器(Star):
         yield _.plain_result(状态信息)
 
     @filter.command("重启爱马仕", alias={"重启Hermes"})
+    @filter.permission_type(filter.PermissionType.ADMIN)
     async def Hermes重启指令(self, event):
+        if not self.启用Hermes连接报告 or not self.重启命令:
+            await event.send(event.plain_result("⚠️ 未启用Hermes连接报告或未配置重启命令"))
+            return
         # 立即发送“正在重启”的回复
         await event.send(event.plain_result("🔄 正在重启Hermes…"))
         self.ws.设置重启状态(event)
