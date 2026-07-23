@@ -1,5 +1,13 @@
 # 更新日志
 
+## [v7.2.4]
+
+### 🔧 更新
+- **非阻塞实例发现**：`initialize` / `on_platform_loaded` / `on_astrbot_loaded` 改为 `asyncio.create_task(_discover_bot_instance())`，避免重试探测阻塞插件加载线程
+- **框架加载后自动发现**：新增 `@filter.on_astrbot_loaded(priority=sys.maxsize-2)`，AstrBot 加载完成后再次尝试绑定 OneBot 实例
+
+---
+
 ## [v7.2.3]
 
 ### 🔧 更新

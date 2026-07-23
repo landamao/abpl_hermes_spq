@@ -898,7 +898,7 @@ class Hermes适配器(Star):
             await self.反向HTTP.start()
 
         if self.消息发送方式 == "框架已有的WebSocket":
-            await self._discover_bot_instance()
+            asyncio.create_task(self._discover_bot_instance())  #避免阻塞插件加载线程
 
         await asyncio.sleep(0.1)
         await self.ws.ws开始()
@@ -921,11 +921,11 @@ class Hermes适配器(Star):
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
         """自动加载OneBot适配器"""
-        await self._discover_bot_instance()
+        asyncio.create_task(self._discover_bot_instance())
 
     @filter.on_astrbot_loaded(priority=sys.maxsize-2)
     async def on_astrbot_loaded(self):
-        await self._discover_bot_instance()
+        asyncio.create_task(self._discover_bot_instance())
 
 
 # 异步单线程
