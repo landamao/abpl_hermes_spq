@@ -923,5 +923,9 @@ class Hermes适配器(Star):
         """自动加载OneBot适配器"""
         await self._discover_bot_instance()
 
+    @filter.on_astrbot_loaded(priority=sys.maxsize-2)
+    async def on_astrbot_loaded(self):
+        await self._discover_bot_instance()
+
 
 # 异步单线程
