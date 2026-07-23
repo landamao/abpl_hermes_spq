@@ -774,30 +774,27 @@ class Hermes适配器(Star):
         结果 = await self.NapCatSend.发送动作参数到NapCat(动作, 参数)
         return 结果
 
-    # ========== Bot 实例发现 ==========
-
     async def _discover_bot_instance(self):
-        """从 AstrBot 上下文主动发现 OneBot bot 实例"""
+        """从 AstrBot 上下文主动发现 OneBot bot 实例，并发重试，并正确匹配配置"""
         platform_manager = getattr(self.context, "platform_manager", None)
         if not platform_manager:
             logger.warning("无法获取 platform_manager")
-            return None
+            return
 
         get_insts = getattr(platform_manager, "get_insts", None)
         if not callable(get_insts):
             logger.warning("platform_manager 没有 get_insts 方法")
-            return None
+            return
 
         platforms = get_insts()
         if not platforms:
             logger.warning("未发现任何平台实例")
-            return None
+            return
 
-        # logger.info(f"发现 {len(platforms)} 个平台实例")
-
+        # 收集所有候选平台（可能是 OneBot 的）
+        candidates = []
         for platform in platforms:
             bot_client = None
-            # 尝试多种方式获取 bot client
             get_client = getattr(platform, "get_client", None)
             if callable(get_client):
                 bot_client = get_client()
@@ -806,15 +803,87 @@ class Hermes适配器(Star):
             if not bot_client:
                 bot_client = getattr(platform, "client", None)
 
-            # 检查是否是 OneBot (有 call_action 方法)
             if bot_client and hasattr(bot_client, "call_action"):
                 if type(bot_client).__name__ != "CQHttp":
                     continue
-                logger.info(f"主动发现 NapCat（OneBot） 实例: {type(bot_client).__name__}")
-                return bot_client
+                logger.info(f"发现候选 OneBot 实例: {type(bot_client).__name__}")
+                candidates.append(bot_client)
 
-        logger.warning("未发现可用的 OneBot 实例")
-        return None
+        if not candidates:
+            logger.warning("未发现任何候选 OneBot 实例")
+            return
+
+        # 定义单个平台的重试任务，返回 (self_id, bot_client) 或 (None, None)
+        async def try_platform(bot_client):
+            from .aiocqhttpevent import AiocqhttpEvent
+
+            max_attempts = 6
+            retry_interval = 5
+
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    event = AiocqhttpEvent(bot_client)
+                    data = await event.bot.call_action("get_login_info")
+                    self_id = data.get("user_id")
+                    if self_id is None:
+                        raise ValueError("返回数据中缺少 user_id")
+                    # 成功，返回 self_id 和 bot_client
+                    return self_id, bot_client
+                except Exception as e:
+                    if attempt < max_attempts:
+                        logger.warning(
+                            f"平台 {type(bot_client).__name__} 获取登录信息失败 (尝试 {attempt}/{max_attempts}): {e}，"
+                            f"{retry_interval} 秒后重试..."
+                        )
+                        await asyncio.sleep(retry_interval)
+                    else:
+                        logger.error(f"平台 {type(bot_client).__name__} 重试 {max_attempts} 次后仍失败")
+            return None, None
+
+        # 并发执行所有候选任务
+        tasks = [try_platform(bot) for bot in candidates]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 收集所有成功获取 self_id 的候选 (bot, self_id)
+        success_list = []
+        for bot, result in zip(candidates, results):
+            if isinstance(result, Exception):
+                logger.warning(f"平台 {type(bot).__name__} 异常: {result}")
+                continue
+            if result is not None and isinstance(result, tuple):
+                self_id, bot_client = result
+                if self_id is not None and bot_client is not None:
+                    success_list.append((bot_client, self_id))
+
+        if not success_list:
+            logger.warning("所有候选 OneBot 实例均未能获取登录信息")
+            return
+
+        # 根据配置选择平台
+        chosen_bot = None
+        chosen_self_id = None
+
+        if self.self_id:  # 配置了期望的机器人 QQ
+            target = str(self.self_id)
+            for bot_client, sid in success_list:
+                if str(sid) == target:
+                    chosen_bot = bot_client
+                    chosen_self_id = sid
+                    logger.debug(f"找到匹配配置的 self_id: {sid}")
+                    break
+            if chosen_bot is None:
+                logger.warning(f"配置的 self_id={target} 未在成功列表中匹配到任何平台")
+                return
+        else:
+            # 未配置，直接取第一个成功获取的
+            chosen_bot, chosen_self_id = success_list[0]
+            logger.debug(f"未配置 self_id，使用第一个成功的平台: {chosen_self_id}")
+
+        # 设置 event
+        from .aiocqhttpevent import AiocqhttpEvent
+        event = AiocqhttpEvent(chosen_bot)
+        self.set_event(event)
+        logger.info(f"成功加载 OneBot BOT 实例 (self_id={chosen_self_id})")
 
     # ========== 生命周期 ==========
 
@@ -829,15 +898,7 @@ class Hermes适配器(Star):
             await self.反向HTTP.start()
 
         if self.消息发送方式 == "框架已有的WebSocket":
-            bot = await self._discover_bot_instance()
-            if not bot:
-                logger.warning("未获取到NapCat bot实例当前发送消息方式为框架已有的WebSocket，请在qq发送任意消息以激活")
-            else:
-                from .aiocqhttpevent import AiocqhttpEvent
-                event = AiocqhttpEvent(bot)
-                from typing import cast
-                event = cast(AiocqhttpMessageEvent, cast(object, event))
-                self.set_event(event)
+            await self._discover_bot_instance()
 
         await asyncio.sleep(0.1)
         await self.ws.ws开始()
@@ -856,6 +917,11 @@ class Hermes适配器(Star):
             await self.NapCatSend.http会话.close()
             logger.info("HTTP 会话已关闭")
         logger.info("插件已停止")
+
+    @filter.on_platform_loaded()
+    async def on_platform_loaded(self):
+        """自动加载OneBot适配器"""
+        await self._discover_bot_instance()
 
 
 # 异步单线程
