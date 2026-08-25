@@ -462,7 +462,7 @@ class Hermes适配器(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_执行指令(self, event: AiocqhttpMessageEvent, command: str = "", args: str = "") -> str:
         """
-        执行 AstrBot 框架的插件指令。当用户明确要求执行某个指令时使用。
+        执行插件指令。当用户明确要求执行某个指令时使用。
 
         Args:
             command(string): 指令名（不含前缀），如 "钓鱼"、"签到"、"状态"
@@ -533,7 +533,7 @@ class Hermes适配器(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_list_commands(self, _: AiocqhttpMessageEvent) -> str:
         """
-        列出所有可执行的 AstrBot 指令列表。
+        列出所有可执行的插件指令列表。
 
         Returns:
             str: 指令列表（指令名 + 描述）
@@ -898,7 +898,7 @@ class Hermes适配器(Star):
             await self.反向HTTP.start()
 
         if self.消息发送方式 == "框架已有的WebSocket":
-            asyncio.create_task(self._discover_bot_instance())  #避免阻塞插件加载线程
+            await self._discover_bot_instance()
 
         await asyncio.sleep(0.1)
         await self.ws.ws开始()
@@ -921,11 +921,11 @@ class Hermes适配器(Star):
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
         """自动加载OneBot适配器"""
-        asyncio.create_task(self._discover_bot_instance())
+        await self._discover_bot_instance()
 
     @filter.on_astrbot_loaded(priority=sys.maxsize-2)
     async def on_astrbot_loaded(self):
-        asyncio.create_task(self._discover_bot_instance())
+        await self._discover_bot_instance()
 
 
 # 异步单线程
