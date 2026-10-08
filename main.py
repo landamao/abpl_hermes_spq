@@ -207,6 +207,8 @@ class Hermes适配器(Star):
     async def 接收消息(self, event: AiocqhttpMessageEvent):
         """监听所有消息（群聊+私聊），存储 AiocqhttpMessageEvent"""
         raw: dict = event.message_obj.raw_message
+        if not isinstance(raw, dict):
+            return
         self_id = str(raw.get('self_id', ""))
         if self.self_id and str(self_id) != self.self_id:
             logger.debug("检测到配置了机器人qq，但该事件的self_id不匹配，，跳过")
@@ -458,7 +460,7 @@ class Hermes适配器(Star):
             logger.error(f"LLM工具执行失败: {e}", exc_info=True)
             return f"执行失败: {str(e)}"
 
-    @filter.llm_tool("execute_command")
+    @filter.llm_tool("execute_plugin_command")
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_执行指令(self, event: AiocqhttpMessageEvent, command: str = "", args: str = "") -> str:
         """
@@ -529,7 +531,7 @@ class Hermes适配器(Star):
             f"- 指令HTTP服务器: {'开启' if self.启用指令HTTP服务器 else '关闭'}"
         )
 
-    @filter.llm_tool("list_commands")
+    @filter.llm_tool("list_plugin_commands")
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def llm工具_list_commands(self, _: AiocqhttpMessageEvent) -> str:
         """
@@ -898,7 +900,7 @@ class Hermes适配器(Star):
             await self.反向HTTP.start()
 
         if self.消息发送方式 == "框架已有的WebSocket":
-            await self._discover_bot_instance()
+            asyncio.create_task(self._discover_bot_instance())  #避免阻塞插件加载线程
 
         await asyncio.sleep(0.1)
         await self.ws.ws开始()
@@ -921,11 +923,11 @@ class Hermes适配器(Star):
     @filter.on_platform_loaded()
     async def on_platform_loaded(self):
         """自动加载OneBot适配器"""
-        await self._discover_bot_instance()
+        asyncio.create_task(self._discover_bot_instance())
 
     @filter.on_astrbot_loaded(priority=sys.maxsize-2)
     async def on_astrbot_loaded(self):
-        await self._discover_bot_instance()
+        asyncio.create_task(self._discover_bot_instance())
 
 
 # 异步单线程
