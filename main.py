@@ -28,6 +28,8 @@ class Hermes适配器(Star):
         连接配置: dict = config['连接配置']
         self.hermes_ws_url: str = 连接配置['hermes_ws_url'].strip().rstrip('/')
         self.hermes_token: str = 连接配置['hermes_token'].strip()
+        self.重连间隔: float = 连接配置.get('重连间隔', 5)
+        self.最大重连次数: int = 连接配置.get('最大重连次数', 0)
         self.消息发送方式: str = 连接配置['消息发送方式'].strip()
         if self.消息发送方式 == "NapCat Http 服务器":
             self.开启反向HTTP: bool = False
@@ -184,7 +186,10 @@ class Hermes适配器(Star):
         if config['脱敏配置']['自动保存']:
             config.save_config()
 
-        self.ws = WsClient(self.hermes_ws_url, self.hermes_token, self.NapCatSend)
+        self.ws = WsClient(
+            self.hermes_ws_url, self.hermes_token, self.NapCatSend,
+            重连间隔=self.重连间隔, 最大重连次数=self.最大重连次数
+        )
         self.self_id = config['其他配置']['机器人qq'].strip()
         self.ws.机器人qq = str(self.self_id)
         self.启用Hermes连接报告 = config['其他配置']['启用Hermes连接报告']
@@ -524,6 +529,7 @@ class Hermes适配器(Star):
         return (
             f"Hermes 适配器状态:\n"
             f"- WebSocket 连接: {ws_status}\n"
+            f"- 重连策略: {self.ws.重连状态文本()}\n"
             f"- 已缓存指令: {cmd_count}个\n"
             f"- 已缓存群聊事件: {group_cached}个\n"
             f"- 已缓存私聊事件: {private_cached}个\n"
@@ -571,6 +577,7 @@ class Hermes适配器(Star):
         状态信息 = (
             f"=== Hermes 适配器状态 ===\n"
             f"Hermes WebSocket: {ws状态}\n"
+            f"重连策略: {self.ws.重连状态文本()}\n"
             f"消息发送: {'NapCat HTTP' if self.消息发送方式 == 'NapCat Http 服务器' else 'AstrBot WebSocket'}\n"
             f"指令HTTP: {http服务器}\n"
             f"反向HTTP: {反向http}\n"
@@ -578,6 +585,36 @@ class Hermes适配器(Star):
             f"\n{Status.总结()}"
         )
         yield _.plain_result(状态信息)
+
+    @filter.command("连接Hermes", alias={"连接hermes", "连接爱马仕", "重连Hermes", "重连hermes", "重连爱马仕", "hconnect"})
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
+    @filter.permission_type(filter.PermissionType.ADMIN)
+    async def Hermes连接指令(self, event):
+        """手动建立（或重建）与 Hermes 的 WebSocket 连接"""
+        原状态 = "已连接" if self.ws.ws已连接 else "未连接"
+        提示 = "🔄 正在重建与Hermes的连接…" if 原状态 == "已连接" else "🔄 正在连接Hermes…"
+        await event.send(event.plain_result(提示))
+
+        async def _等待连接结果():
+            try:
+                await self.ws.立即重连()
+                if await self.ws.等待连接(超时=10):
+                    await event.send(event.plain_result(
+                        f"✅ 已连接到Hermes\n"
+                        f"地址：{self.hermes_ws_url}"
+                    ))
+                else:
+                    await event.send(event.plain_result(
+                        f"❌ 连接Hermes失败（原状态：{原状态}）\n"
+                        f"地址：{self.hermes_ws_url}\n"
+                        f"重连策略：{self.ws.重连状态文本()}\n"
+                        f"请检查 Hermes 是否运行、地址与 token 是否正确"
+                    ))
+            except Exception as e:
+                logger.error(f"手动连接Hermes失败: {e}", exc_info=True)
+                await event.send(event.plain_result(f"❌ 连接Hermes异常: {e}"))
+
+        asyncio.create_task(_等待连接结果())
 
     @filter.command("重启爱马仕", alias={"重启Hermes"})
     @filter.permission_type(filter.PermissionType.ADMIN)

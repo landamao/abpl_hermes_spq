@@ -16,6 +16,18 @@
                 "default": "",
                 "hint": "连接 Hermes 时的认证令牌，留空表示无需认证"
             },
+            "重连间隔": {
+                "type": "int",
+                "description": "重连间隔（秒）",
+                "default": 5,
+                "hint": "WebSocket 断开或连接失败后，等待多少秒再尝试重连，最小 1 秒"
+            },
+            "最大重连次数": {
+                "type": "int",
+                "description": "最大重连次数",
+                "default": 0,
+                "hint": "连续重连失败达到该次数后停止自动重连，0 表示无限重连；停止后可发送 /连接Hermes 手动重连"
+            },
             "消息发送方式": {
                 "description": "消息发送方式",
                 "type": "string",

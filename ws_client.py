@@ -6,12 +6,23 @@ from .logger import logger
 
 class WsClient:
 
-    def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend):
+    def __init__(self, hermes_ws_url, hermes_token, napcat_send:NapCatSend,
+                 重连间隔: float = 5, 最大重连次数: int = 0):
         self.指令重启 = False
         self.发送类型 = None
         self.目标ID = None
         self.ws已连接 = False
-        self.ws重连延迟 = 5
+        # 重连配置：间隔（秒）与上限（0 表示无限）
+        try:
+            self.ws重连延迟 = max(1.0, float(重连间隔))
+        except (TypeError, ValueError):
+            self.ws重连延迟 = 5.0
+        try:
+            self.最大重连次数 = max(0, int(最大重连次数))
+        except (TypeError, ValueError):
+            self.最大重连次数 = 0
+        self.连续失败次数 = 0
+        self.ws自动重连已停止 = False
         self.NapCatSend = napcat_send
         self.ws任务 = None
         self.hermes_ws_url = hermes_ws_url
@@ -25,6 +36,8 @@ class WsClient:
 
     async def ws开始(self):
         """启动 WebSocket 连接循环"""
+        self.连续失败次数 = 0
+        self.ws自动重连已停止 = False
         self.ws任务 = asyncio.create_task(self.ws连接循环())
 
     async def ws停止(self):
@@ -35,8 +48,42 @@ class WsClient:
                 await self.ws任务
             except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.debug(f"停止 WebSocket 任务时出现异常：{e}")
+            self.ws任务 = None
         if self.ws服务:
-            await self.ws服务.close()
+            try:
+                await self.ws服务.close()
+            except Exception as e:
+                logger.debug(f"关闭 WebSocket 连接时出现异常：{e}")
+            self.ws服务 = None
+        self.ws已连接 = False
+
+    async def 立即重连(self):
+        """手动重连：中断当前连接循环，重置失败计数后立即重新连接"""
+        logger.info("收到手动重连请求，正在重建与 Hermes 的连接...")
+        await self.ws停止()
+        await self.ws开始()
+
+    async def 等待连接(self, 超时: float = 10.0) -> bool:
+        """轮询等待连接成功，返回是否在超时前连接成功"""
+        截止时间 = time.monotonic() + 超时
+        while time.monotonic() < 截止时间:
+            if self.ws已连接:
+                return True
+            await asyncio.sleep(0.2)
+        return self.ws已连接
+
+    def 重连状态文本(self) -> str:
+        """返回重连配置与当前重连状态的描述"""
+        上限 = "无限" if not self.最大重连次数 else f"{self.最大重连次数}次"
+        if self.ws自动重连已停止:
+            状态 = "已停止（需手动重连）"
+        elif self.连续失败次数:
+            状态 = f"重连中（已连续失败{self.连续失败次数}次）"
+        else:
+            状态 = "正常"
+        return f"间隔{self.ws重连延迟:.0f}s / 上限{上限} / {状态}"
 
     async def 发送ws消息(self, data: dict):
         """发送 WebSocket 消息"""
@@ -51,7 +98,7 @@ class WsClient:
                 logger.error(f"发送失败，原始数据: {data}")
 
     async def ws连接循环(self):
-        """WebSocket 重连循环"""
+        """WebSocket 重连循环（间隔与次数由配置决定）"""
         while True:
             try:
                 await self.连接到ws()
@@ -59,13 +106,30 @@ class WsClient:
                 break
             except Exception as e:
                 logger.error(f"WebSocket 连接异常: {e}")
-    
+
             if self.ws已连接:
-                logger.info("WebSocket 断开，准备重连...")
+                logger.warning("WebSocket 断开，准备重连...")
                 self.ws已连接 = False
                 Status.ws断开次数 += 1
-    
-            logger.info(f"等待 {self.ws重连延迟:.1f}s 后重连...")
+                # 连接曾成功过，失败计数重新开始
+                self.连续失败次数 = 0
+
+            self.连续失败次数 += 1
+
+            if self.最大重连次数 and self.连续失败次数 > self.最大重连次数:
+                self.ws自动重连已停止 = True
+                logger.error(
+                    f"WebSocket 已连续重连失败 {self.最大重连次数} 次，已达上限，停止自动重连。"
+                    f"请检查 Hermes 是否运行，修复后可发送指令 /连接Hermes 手动重连"
+                )
+                break
+
+            if self.最大重连次数:
+                logger.info(
+                    f"第 {self.连续失败次数}/{self.最大重连次数} 次重连将在 {self.ws重连延迟:.1f}s 后开始..."
+                )
+            else:
+                logger.info(f"第 {self.连续失败次数} 次重连将在 {self.ws重连延迟:.1f}s 后开始...")
             await asyncio.sleep(self.ws重连延迟)
 
     async def 连接到ws(self):
